@@ -1,0 +1,378 @@
+import { useState } from "react"
+import api from "../api"
+
+const COLORES_ESTADO = {
+  reservado:  { bg:"#1f1a0a", border:"#3d3520", color:"#cc9933" },
+  confirmado: { bg:"#2a0a0a", border:"#5a1010", color:"#ff3333" },
+  asistido:   { bg:"#0f1f0f", border:"#2a3d2a", color:"#5aaa5a" },
+  completado: { bg:"#0f1f0f", border:"#2a3d2a", color:"#5aaa5a" },
+  ausente:    { bg:"#1e1e1e", border:"#333",    color:"#777"    },
+  cancelado:  { bg:"#1e1e1e", border:"#333",    color:"#555"    },
+}
+
+const METODOS_PAGO = ["efectivo", "transferencia"]
+
+function Btn({ children, onClick, variante = "gray", disabled = false }) {
+  const estilos = {
+    red:   { background:"#CC0000",     color:"white",   border:"none" },
+    green: { background:"#1a4d1a",     color:"#5aaa5a", border:"0.5px solid #2a5a2a" },
+    amber: { background:"#2a2010",     color:"#cc9933", border:"0.5px solid #3d3020" },
+    gray:  { background:"transparent", color:"#888",    border:"0.5px solid #444" },
+    dark:  { background:"#2a2a2a",     color:"#666",    border:"0.5px solid #333" },
+  }
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        width:"100%", padding:"9px", borderRadius:"6px",
+        fontSize:"13px", fontWeight:500, marginBottom:"8px",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.5 : 1,
+        ...estilos[variante],
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+function InfoRow({ label, valor, colorValor }) {
+  return (
+    <div style={{ display:"flex", justifyContent:"space-between", fontSize:"12px", padding:"6px 0", borderBottom:"0.5px solid #2a2a2a" }}>
+      <span style={{ color:"#555" }}>{label}</span>
+      <span style={{ color: colorValor || "#f0f0f0" }}>{valor}</span>
+    </div>
+  )
+}
+
+function SelectorMetodo({ valor, onChange }) {
+  return (
+    <div style={{ marginBottom:"12px" }}>
+      <label style={{ fontSize:"12px", color:"#888", marginBottom:"4px", display:"block" }}>
+        Método de pago
+      </label>
+      <select
+        value={valor}
+        onChange={e => onChange(e.target.value)}
+        style={{ width:"100%", padding:"8px 10px", background:"#2a2a2a", border:"0.5px solid #444", borderRadius:"6px", color:"#f0f0f0", fontSize:"13px" }}
+      >
+        <option value="">Seleccioná método</option>
+        {METODOS_PAGO.map(m => (
+          <option key={m} value={m}>{m}</option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
+function StepIndicator({ pasoActual, pasos }) {
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap:"6px", marginBottom:"1.25rem" }}>
+      {pasos.map((p, i) => {
+        const estado = pasoActual > i + 1 ? "done" : pasoActual === i + 1 ? "active" : "pending"
+        return (
+          <>
+            <div key={p} style={{
+              width:"24px", height:"24px", borderRadius:"50%",
+              display:"flex", alignItems:"center", justifyContent:"center",
+              fontSize:"11px", fontWeight:500,
+              background: estado === "done" ? "#1a4d1a" : estado === "active" ? "#2a0a0a" : "#242424",
+              border: estado === "done" ? "0.5px solid #2a5a2a" : estado === "active" ? "0.5px solid #CC0000" : "0.5px solid #333",
+              color: estado === "done" ? "#5aaa5a" : estado === "active" ? "#ff3333" : "#555",
+            }}>
+              {estado === "done" ? "✓" : i + 1}
+            </div>
+            {i < pasos.length - 1 && (
+              <div key={`line-${i}`} style={{ flex:1, height:"0.5px", background:"#333" }} />
+            )}
+          </>
+        )
+      })}
+    </div>
+  )
+}
+
+
+//#######################################################
+// FLUJO ASISTIDO
+//#######################################################
+
+function FlujoPago({ turno, onCompletado, onError }) {
+  const [paso,     setPaso]     = useState(1)
+  const [metodo,   setMetodo]   = useState("")
+  const [cargando, setCargando] = useState(false)
+
+ 
+    const saldoRestante = turno.estado_senia === "abonada"
+    ? Number(turno.monto_total) - Number(turno.monto_senia)
+    : Number(turno.monto_total)
+
+  async function cobrarYCompletar() {
+    if (!metodo) return onError("Seleccioná un método de pago")
+    setCargando(true)
+    try {
+      const { data: deudas } = await api.get(`/deudas/cliente/${turno.cliente_id}`)
+      const deuda = deudas.find(d => d.turno_id === turno.turno_id && d.estado !== "saldada")
+      if (deuda) {
+        await api.post(`/deudas/${deuda.deuda_id}/pagar`, {
+          monto:       saldoRestante,
+          metodo_pago: metodo,
+        })
+      }
+      await api.patch(`/turnos/${turno.turno_id}/completar`)
+      setPaso(3)
+      onCompletado()
+    } catch(e) {
+      onError(e.response?.data?.detail || "Error al cobrar")
+    } finally { setCargando(false) }
+  }
+
+  async function registrarDeuda() {
+    setCargando(true)
+    try {
+      await api.patch(`/turnos/${turno.turno_id}/completar`)
+      setPaso(3)
+      onCompletado()
+    } catch(e) {
+      onError(e.response?.data?.detail || "Error al completar")
+    } finally { setCargando(false) }
+  }
+
+  if (paso === 3) {
+    return (
+      <div style={{ textAlign:"center", padding:"1rem 0" }}>
+        <div style={{ width:"48px", height:"48px", borderRadius:"50%", background:"#1a4d1a", border:"0.5px solid #2a5a2a", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 12px", fontSize:"20px" }}>
+          ✓
+        </div>
+        <p style={{ fontSize:"15px", fontWeight:500, color:"#5aaa5a", margin:"0 0 4px" }}>Turno completado</p>
+        <p style={{ fontSize:"12px", color:"#888", margin:0 }}>
+          {turno.cliente?.nombre} · {turno.servicio?.nombre}
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <StepIndicator pasoActual={paso} pasos={["Info", "Pago"]} />
+      {paso === 1 && (
+        <>
+          <p style={{ fontSize:"13px", color:"#888", margin:"0 0 1.25rem" }}>
+            Turno asistido. ¿Cómo abono el corte?
+          </p>
+          <Btn variante="green" onClick={() => setPaso(2)}>
+             Registrar pago del saldo
+          </Btn>
+          <Btn variante="amber" onClick={registrarDeuda} disabled={cargando}>
+             Se va sin pagar — registrar deuda
+          </Btn>
+        </>
+      )}
+      {paso === 2 && (
+        <>
+          <p style={{ fontSize:"14px", fontWeight:500, color:"#f0f0f0", margin:"0 0 4px" }}>
+            ¿Cómo pagó {turno.cliente?.nombre}?
+          </p>
+          <p style={{ fontSize:"12px", color:"#888", margin:"0 0 1.25rem" }}>
+            Saldo restante: <span style={{ color:"#ff3333" }}>${saldoRestante}</span>
+          </p>
+          <SelectorMetodo valor={metodo} onChange={setMetodo} />
+          <Btn variante="red" onClick={cobrarYCompletar} disabled={!metodo || cargando}>
+             Cobrar ${saldoRestante} y completar
+          </Btn>
+          <Btn variante="gray" onClick={() => setPaso(1)} disabled={cargando}>
+             Volver
+          </Btn>
+        </>
+      )}
+    </>
+  )
+}
+
+// ##############################################
+// ACCIONES RESERVADO
+// ##############################################
+
+function AccionesReservado({ turno, cargando, onRegistrarSenia, onAccion, onWhatsApp }) {
+  const [metodo, setMetodo] = useState("")
+
+  return (
+    <>
+      <SelectorMetodo valor={metodo} onChange={setMetodo} />
+      <Btn variante="red"   onClick={() => onRegistrarSenia(metodo)} disabled={!metodo || cargando}>
+         Registrar seña
+      </Btn>
+      <Btn variante="green" onClick={() => onAccion("confirmar_sin_senia")} disabled={cargando}>
+          Confirmar sin seña
+      </Btn>
+      <Btn variante="green" onClick={onWhatsApp}>
+         Enviar seña por WhatsApp
+      </Btn>
+      <Btn variante="dark"  onClick={() => onAccion("cancelar", "¿Cancelar este turno?")} disabled={cargando}>
+         Cancelar turno
+      </Btn>
+    </>
+  )
+}
+
+// #############################################
+// COMPONENTE PRINCIPAL
+// #############################################
+
+function ModalTurno({ turno: turnoInicial, onCerrar, onActualizado }) {
+  const [turno,    setTurno]    = useState(turnoInicial)
+  const [error,    setError]    = useState(null)
+  const [cargando, setCargando] = useState(false)
+
+  const estado = turno.estado?.toLowerCase()
+  const c      = COLORES_ESTADO[estado] || COLORES_ESTADO.cancelado
+
+  
+    const saldoRestante = turno.estado_senia === "abonada"
+    ? Number(turno.monto_total) - Number(turno.monto_senia)
+    : Number(turno.monto_total)
+
+  async function recargarTurno() {
+    try {
+      const { data } = await api.get(`/turnos/${turno.turno_id}`)
+      setTurno(data)
+      setError(null)
+      if (["confirmado", "completado", "cancelado", "ausente"].includes(data.estado)) {
+        onActualizado()
+      }
+    } catch(e) {
+      setError("Error al recargar el turno")
+    }
+  }
+
+  async function accion(endpoint, confirmMsg) {
+    if (confirmMsg && !confirm(confirmMsg)) return
+    setCargando(true)
+    setError(null)
+    try {
+      await api.patch(`/turnos/${turno.turno_id}/${endpoint}`)
+      await recargarTurno()
+    } catch(e) {
+      setError(e.response?.data?.detail || "Error")
+    } finally { setCargando(false) }
+  }
+
+  async function registrarSenia(metodo) {
+    if (!metodo) return setError("Seleccioná un método de pago")
+    setCargando(true)
+    setError(null)
+    try {
+      await api.patch(`/turnos/${turno.turno_id}/seniar?metodo_pago=${metodo}`)
+      await recargarTurno()
+    } catch(e) {
+      setError(e.response?.data?.detail || "Error al registrar seña")
+    } finally { setCargando(false) }
+  }
+
+  function abrirWhatsApp() {
+    const celularLimpio = turno.cliente?.celular?.replace(/\D/g, "")
+    const numero = celularLimpio.startsWith("54")
+      ? celularLimpio
+      : `54${celularLimpio}`
+
+    const fecha = new Date(turno.fecha_hora_inicio).toLocaleDateString("es-AR", {
+      weekday: "long", day: "numeric", month: "long"
+    })
+    const hora = turno.fecha_hora_inicio?.split("T")[1]?.slice(0, 5)
+
+    const mensaje = encodeURIComponent(
+      `Hola ${turno.cliente?.nombre}, \n` +
+      `Tu turno está reservado para el ${fecha} a las ${hora}hs.\n` +
+      `Valor de Seña: $${turno.monto_senia}\n\n` +
+      `Por favor abonala para confirmar tu lugar. ¡Gracias! \n` +
+      `\n \n` +
+      `Alias: isa.acosta \n`+
+      `A nombre de Isaura Mercedes Acosta\n`
+       
+    )
+
+    window.open(`https://wa.me/${numero}?text=${mensaje}`, "_blank")
+  }
+
+  return (
+    <div
+      onClick={onCerrar}
+      style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:100 }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{ background:"#1e1e1e", border:"0.5px solid #333", borderRadius:"12px", padding:"1.5rem", width:"360px", maxHeight:"90vh", overflowY:"auto" }}
+      >
+        {/* Encabezado */}
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"1.25rem" }}>
+          <div>
+            <p style={{ fontSize:"15px", fontWeight:500, color:"#f0f0f0", margin:0 }}>
+              {turno.cliente?.nombre || `Cliente #${turno.cliente_id}`}
+            </p>
+            <p style={{ fontSize:"12px", color:"#888", margin:"2px 0 0" }}>
+              {turno.servicio?.nombre} · {turno.fecha_hora_inicio?.replace(" ", "T").split("T")[1]?.slice(0,5)}
+            </p>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
+            <span style={{ fontSize:"10px", padding:"2px 8px", borderRadius:"20px", background:c.bg, border:`0.5px solid ${c.border}`, color:c.color, textTransform:"capitalize" }}>
+              {estado}
+            </span>
+            <span onClick={onCerrar} style={{ color:"#555", cursor:"pointer", fontSize:"18px" }}>✕</span>
+          </div>
+        </div>
+
+        {/* Info financiera */}
+        <div style={{ marginBottom:"1.25rem" }}>
+          <InfoRow label="Seña"           valor={turno.estado_senia === "exenta" ? "Sin seña" : `$${turno.monto_senia}`} />
+          <InfoRow label="Total"          valor={`$${turno.monto_total}`} />
+          <InfoRow label="Saldo restante" valor={`$${saldoRestante}`} colorValor={saldoRestante > 0 ? "#ff3333" : "#5aaa5a"} />
+          <InfoRow label="Estado seña"    valor={turno.estado_senia} />
+        </div>
+
+        {/* RESERVADO */}
+        {estado === "reservado" && (
+          <AccionesReservado
+            turno={turno}
+            cargando={cargando}
+            onRegistrarSenia={registrarSenia}
+            onAccion={accion}
+            onWhatsApp={abrirWhatsApp}
+          />
+        )}
+
+        {/* CONFIRMADO */}
+        {estado === "confirmado" && (
+          <>
+            <Btn variante="green" onClick={() => accion("asistido")} disabled={cargando}>✓ Marcar asistido</Btn>
+            <Btn variante="dark"  onClick={() => accion("ausente", "¿Marcar al cliente como ausente?")} disabled={cargando}>👻 Marcar ausente</Btn>
+            <Btn variante="dark"  onClick={() => accion("cancelar", "¿Cancelar este turno?")} disabled={cargando}>✕ Cancelar turno</Btn>
+          </>
+        )}
+
+        {/* ASISTIDO */}
+        {estado === "asistido" && (
+          <FlujoPago
+            turno={turno}
+            onCompletado={onActualizado}
+            onError={setError}
+          />
+        )}
+
+        {/* COMPLETADO / CANCELADO / AUSENTE */}
+        {["completado", "cancelado", "ausente"].includes(estado) && (
+          <p style={{ fontSize:"12px", color:"#555", textAlign:"center", padding:"8px 0" }}>
+            Turno cerrado — sin acciones disponibles
+          </p>
+        )}
+
+        {/* Error */}
+        {error && (
+          <p style={{ fontSize:"12px", color:"#ff3333", marginTop:"8px", textAlign:"center" }}>{error}</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default ModalTurno

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import api from "../api"
+import ModalTurno from "../components/ModalTurno"
 
 // ─────────────────────────────────────────────
 // CONSTANTES
@@ -23,7 +24,7 @@ const COLORES_ESTADO = {
 }
 
 // ─────────────────────────────────────────────
-// HELPER — genera los próximos 7 días
+// HELPER
 // ─────────────────────────────────────────────
 
 function generarDias() {
@@ -32,26 +33,31 @@ function generarDias() {
   return Array.from({ length: 7 }, (_, i) => {
     const fecha = new Date(hoy)
     fecha.setDate(hoy.getDate() + i)
+
+    // ← CAMBIO: construir fecha sin conversión UTC
+    const year  = fecha.getFullYear()
+    const month = String(fecha.getMonth() + 1).padStart(2, "0")
+    const day   = String(fecha.getDate()).padStart(2, "0")
+    const fechaStr = `${year}-${month}-${day}`
+
     return {
       label:  nombres[fecha.getDay()],
       numero: fecha.getDate(),
-      fecha:  fecha.toISOString().split("T")[0],
+      fecha:  fechaStr,  // ← antes era fecha.toISOString().split("T")[0]
       titulo: fecha.toLocaleDateString("es-AR", { weekday:"long", day:"numeric", month:"long" }),
     }
   })
 }
-
 // ─────────────────────────────────────────────
 // COMPONENTE — Buscador con dropdown
 // ─────────────────────────────────────────────
 
 function Buscador({ label, placeholder, items, onSeleccionar, campoSecundario, textoSecundario }) {
-  const [query, setQuery]           = useState("")
-  const [abierto, setAbierto]       = useState(false)
+  const [query, setQuery]               = useState("")
+  const [abierto, setAbierto]           = useState(false)
   const [seleccionado, setSeleccionado] = useState(null)
   const ref = useRef(null)
 
-  // Cierra el dropdown si hacés clic afuera
   useEffect(() => {
     function handler(e) {
       if (ref.current && !ref.current.contains(e.target)) setAbierto(false)
@@ -81,14 +87,8 @@ function Buscador({ label, placeholder, items, onSeleccionar, campoSecundario, t
   return (
     <div>
       <label style={{ fontSize:"12px", color:"#888", marginBottom:"4px", display:"block" }}>{label}</label>
-
       {seleccionado ? (
-        // Badge del ítem seleccionado
-        <div style={{
-          display:"flex", alignItems:"center", gap:"6px",
-          background:"#2a0a0a", border:"0.5px solid #5a1010",
-          borderRadius:"6px", padding:"6px 10px",
-        }}>
+        <div style={{ display:"flex", alignItems:"center", gap:"6px", background:"#2a0a0a", border:"0.5px solid #5a1010", borderRadius:"6px", padding:"6px 10px" }}>
           <div style={{ flex:1 }}>
             <div style={{ fontSize:"13px", fontWeight:500, color:"#ff3333" }}>{seleccionado.nombre}</div>
             {campoSecundario && (
@@ -98,7 +98,6 @@ function Buscador({ label, placeholder, items, onSeleccionar, campoSecundario, t
           <span onClick={limpiar} style={{ color:"#555", cursor:"pointer", fontSize:"16px" }}>✕</span>
         </div>
       ) : (
-        // Input de búsqueda
         <div ref={ref} style={{ position:"relative" }}>
           <span style={{ position:"absolute", left:"10px", top:"50%", transform:"translateY(-50%)", color:"#555", fontSize:"13px", pointerEvents:"none" }}>🔍</span>
           <input
@@ -106,29 +105,17 @@ function Buscador({ label, placeholder, items, onSeleccionar, campoSecundario, t
             onChange={e => { setQuery(e.target.value); setAbierto(true) }}
             onFocus={() => setAbierto(true)}
             placeholder={placeholder}
-            style={{
-              width:"100%", padding:"8px 10px 8px 30px",
-              background:"#2a2a2a", border:"0.5px solid #444",
-              borderRadius:"6px", color:"#f0f0f0", fontSize:"13px",
-              boxSizing:"border-box",
-            }}
+            style={{ width:"100%", padding:"8px 10px 8px 30px", background:"#2a2a2a", border:"0.5px solid #444", borderRadius:"6px", color:"#f0f0f0", fontSize:"13px", boxSizing:"border-box" }}
           />
           {abierto && (
-            <div style={{
-              position:"absolute", top:"calc(100% + 4px)", left:0, right:0,
-              background:"#2a2a2a", border:"0.5px solid #444",
-              borderRadius:"6px", zIndex:10, maxHeight:"160px", overflowY:"auto",
-            }}>
+            <div style={{ position:"absolute", top:"calc(100% + 4px)", left:0, right:0, background:"#2a2a2a", border:"0.5px solid #444", borderRadius:"6px", zIndex:10, maxHeight:"160px", overflowY:"auto" }}>
               {filtrados.length === 0 ? (
                 <div style={{ padding:"10px 12px", fontSize:"12px", color:"#555" }}>Sin resultados</div>
               ) : filtrados.map(item => (
                 <div
                   key={item.id}
                   onClick={() => elegir(item)}
-                  style={{
-                    padding:"8px 12px", fontSize:"13px", cursor:"pointer",
-                    borderBottom:"0.5px solid #333",
-                  }}
+                  style={{ padding:"8px 12px", fontSize:"13px", cursor:"pointer", borderBottom:"0.5px solid #333" }}
                   onMouseEnter={e => e.currentTarget.style.background = "#3a0a0a"}
                   onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                 >
@@ -159,7 +146,6 @@ function ModalNuevoTurno({ horario, dia, onCerrar, onCreado }) {
   const [clientes,             setClientes]             = useState([])
   const [servicios,            setServicios]            = useState([])
 
-  // Carga clientes y servicios al abrir el modal
   useEffect(() => {
     api.get("/clientes/").then(res => setClientes(res.data.filter(c => c.activo)))
     api.get("/servicios/").then(res => setServicios(res.data.filter(s => s.activo)))
@@ -177,7 +163,7 @@ function ModalNuevoTurno({ horario, dia, onCerrar, onCreado }) {
         fecha_hora_inicio: fechaHora,
         observacion:       observacion || null,
       })
-      onCreado()  // avisa al padre que se creó el turno
+      onCreado()
       onCerrar()
     } catch (e) {
       setError(e.response?.data?.detail || "Error al crear el turno")
@@ -189,21 +175,8 @@ function ModalNuevoTurno({ horario, dia, onCerrar, onCreado }) {
   const listo = clienteSeleccionado && servicioSeleccionado
 
   return (
-    // Overlay oscuro de fondo
-    <div
-      onClick={onCerrar}
-      style={{
-        position:"fixed", inset:0, background:"rgba(0,0,0,0.7)",
-        display:"flex", alignItems:"center", justifyContent:"center", zIndex:100,
-      }}
-    >
-      {/* El onClick del modal no propaga al overlay */}
-      <div onClick={e => e.stopPropagation()} style={{
-        background:"#1e1e1e", border:"0.5px solid #333",
-        borderRadius:"12px", padding:"1.5rem", width:"360px",
-      }}>
-
-        {/* Encabezado */}
+    <div onClick={onCerrar} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:100 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:"#1e1e1e", border:"0.5px solid #333", borderRadius:"12px", padding:"1.5rem", width:"360px" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"1.25rem" }}>
           <div>
             <p style={{ fontSize:"15px", fontWeight:500, color:"#f0f0f0", margin:0 }}>Nuevo turno</p>
@@ -213,70 +186,24 @@ function ModalNuevoTurno({ horario, dia, onCerrar, onCreado }) {
           </div>
           <span onClick={onCerrar} style={{ color:"#555", cursor:"pointer", fontSize:"18px" }}>✕</span>
         </div>
-
-        {/* Formulario */}
         <div style={{ display:"flex", flexDirection:"column", gap:"16px" }}>
-          <Buscador
-            label="Cliente"
-            placeholder="Buscá por nombre o celular..."
-            items={clientes}
-            campoSecundario="celular"
-            textoSecundario={c => c.celular}
-            onSeleccionar={setClienteSeleccionado}
-          />
-          <Buscador
-            label="Servicio"
-            placeholder="Buscá por nombre..."
-            items={servicios}
-            campoSecundario="precio_total"
-            textoSecundario={s => `$${s.precio_total} · ${s.duracion}min`}
-            onSeleccionar={setServicioSeleccionado}
-          />
+          <Buscador label="Cliente" placeholder="Buscá por nombre o celular..." items={clientes} campoSecundario="celular" textoSecundario={c => c.celular} onSeleccionar={setClienteSeleccionado} />
+          <Buscador label="Servicio" placeholder="Buscá por nombre..." items={servicios} campoSecundario="precio_total" textoSecundario={s => `$${s.precio_total} · ${s.duracion}min`} onSeleccionar={setServicioSeleccionado} />
           <div>
-            <label style={{ fontSize:"12px", color:"#888", marginBottom:"4px", display:"block" }}>
-              Observación (opcional)
-            </label>
-            <input
-              value={observacion}
-              onChange={e => setObservacion(e.target.value)}
-              placeholder="Ej: viene con su hijo también"
-              style={{
-                width:"100%", padding:"8px 10px", background:"#2a2a2a",
-                border:"0.5px solid #444", borderRadius:"6px",
-                color:"#f0f0f0", fontSize:"13px", boxSizing:"border-box",
-              }}
+            <label style={{ fontSize:"12px", color:"#888", marginBottom:"4px", display:"block" }}>Observación (opcional)</label>
+            <input value={observacion} onChange={e => setObservacion(e.target.value)} placeholder="Ej: viene con su hijo también"
+              style={{ width:"100%", padding:"8px 10px", background:"#2a2a2a", border:"0.5px solid #444", borderRadius:"6px", color:"#f0f0f0", fontSize:"13px", boxSizing:"border-box" }}
             />
           </div>
         </div>
-
-        {/* Error */}
-        {error && (
-          <p style={{ fontSize:"12px", color:"#ff3333", marginTop:"10px" }}>{error}</p>
-        )}
-
-        {/* Botones */}
+        {error && <p style={{ fontSize:"12px", color:"#ff3333", marginTop:"10px" }}>{error}</p>}
         <div style={{ marginTop:"1.25rem" }}>
-          <button
-            onClick={confirmar}
-            disabled={!listo || cargando}
-            style={{
-              width:"100%", padding:"9px", borderRadius:"6px",
-              background: listo ? "#CC0000" : "#5a1010",
-              border:"none", color: listo ? "white" : "#888",
-              fontSize:"13px", fontWeight:500,
-              cursor: listo ? "pointer" : "not-allowed",
-            }}
-          >
+          <button onClick={confirmar} disabled={!listo || cargando}
+            style={{ width:"100%", padding:"9px", borderRadius:"6px", background: listo ? "#CC0000" : "#5a1010", border:"none", color: listo ? "white" : "#888", fontSize:"13px", fontWeight:500, cursor: listo ? "pointer" : "not-allowed" }}>
             {cargando ? "Creando..." : "Confirmar turno"}
           </button>
-          <button
-            onClick={onCerrar}
-            style={{
-              width:"100%", padding:"9px", borderRadius:"6px",
-              background:"transparent", border:"0.5px solid #444",
-              color:"#888", fontSize:"13px", cursor:"pointer", marginTop:"8px",
-            }}
-          >
+          <button onClick={onCerrar}
+            style={{ width:"100%", padding:"9px", borderRadius:"6px", background:"transparent", border:"0.5px solid #444", color:"#888", fontSize:"13px", cursor:"pointer", marginTop:"8px" }}>
             Cancelar
           </button>
         </div>
@@ -291,10 +218,11 @@ function ModalNuevoTurno({ horario, dia, onCerrar, onCreado }) {
 
 function Turnos() {
   const dias = generarDias()
-  const [diaSeleccionado, setDiaSeleccionado] = useState(dias[0])
-  const [turnos,          setTurnos]          = useState([])
-  const [cargando,        setCargando]        = useState(false)
-  const [modalHorario,    setModalHorario]    = useState(null) // null = cerrado
+  const [diaSeleccionado,   setDiaSeleccionado]   = useState(dias[0])
+  const [turnos,            setTurnos]            = useState([])
+  const [cargando,          setCargando]          = useState(false)
+  const [modalHorario,      setModalHorario]      = useState(null)
+  const [turnoSeleccionado, setTurnoSeleccionado] = useState(null) // ← ADENTRO del componente
 
   function cargarTurnos() {
     setCargando(true)
@@ -306,14 +234,24 @@ function Turnos() {
 
   useEffect(() => { cargarTurnos() }, [diaSeleccionado])
 
-  function turnoDeEsteHorario(horario) {
-    return turnos.find(t => {
-      const fechaTurno = t.fecha_hora_inicio.split("T")[0]
-      const horaTurno  = t.fecha_hora_inicio.split("T")[1]?.slice(0, 5)
-      return fechaTurno === diaSeleccionado.fecha && horaTurno === horario
-    })
+function turnoDeEsteHorario(horario) {
+  const estadosOcultos = ["cancelado", "ausente"]
+  const resultado = turnos.find(t => {
+    const fechaHora  = t.fecha_hora_inicio.replace(" ", "T")
+    const fechaTurno = fechaHora.split("T")[0]
+    const horaTurno  = fechaHora.split("T")[1]?.slice(0, 5)
+    return (
+      fechaTurno === diaSeleccionado.fecha &&
+      horaTurno  === horario &&
+      !estadosOcultos.includes(t.estado)
+    )
+  })
+  if (horario === "08:00") {
+    console.log("Buscando 08:00 — diaSeleccionado.fecha:", diaSeleccionado.fecha)
+    console.log("Turnos candidatos:", turnos.filter(t => t.fecha_hora_inicio.includes("08:00")))
   }
-
+  return resultado
+}
   return (
     <div style={{ flex:1, padding:"1.5rem", background:"#1a1a1a", overflowY:"auto" }}>
 
@@ -332,17 +270,8 @@ function Turnos() {
         {dias.map(dia => {
           const activo = dia.fecha === diaSeleccionado.fecha
           return (
-            <button
-              key={dia.fecha}
-              onClick={() => setDiaSeleccionado(dia)}
-              style={{
-                padding:"8px 12px", borderRadius:"8px", minWidth:"64px",
-                border:      activo ? "0.5px solid #CC0000" : "0.5px solid #333",
-                background:  activo ? "#2a0a0a" : "#242424",
-                color:       activo ? "#ff3333" : "#888",
-                cursor:"pointer", textAlign:"center",
-              }}
-            >
+            <button key={dia.fecha} onClick={() => setDiaSeleccionado(dia)}
+              style={{ padding:"8px 12px", borderRadius:"8px", minWidth:"64px", border: activo ? "0.5px solid #CC0000" : "0.5px solid #333", background: activo ? "#2a0a0a" : "#242424", color: activo ? "#ff3333" : "#888", cursor:"pointer", textAlign:"center" }}>
               <div style={{ fontSize:"11px" }}>{dia.label}</div>
               <div style={{ fontSize:"15px", fontWeight:500 }}>{dia.numero}</div>
             </button>
@@ -360,13 +289,10 @@ function Turnos() {
 
             if (!turno) {
               return (
-                <div
-                  key={horario}
-                  onClick={() => setModalHorario(horario)}
+                <div key={horario} onClick={() => setModalHorario(horario)}
                   style={{ borderRadius:"8px", border:"0.5px solid #333", padding:"12px", background:"#242424", cursor:"pointer" }}
                   onMouseEnter={e => { e.currentTarget.style.borderColor = "#CC0000"; e.currentTarget.style.background = "#2a0a0a" }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = "#333";    e.currentTarget.style.background = "#242424" }}
-                >
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = "#333";    e.currentTarget.style.background = "#242424" }}>
                   <p style={{ fontSize:"13px", fontWeight:500, color:"#555", margin:"0 0 4px" }}>{horario}</p>
                   <p style={{ fontSize:"12px", color:"#444", margin:0 }}>Libre</p>
                 </div>
@@ -375,7 +301,16 @@ function Turnos() {
 
             const c = COLORES_ESTADO[turno.estado] || COLORES_ESTADO.cancelado
             return (
-              <div key={horario} style={{ borderRadius:"8px", border:`0.5px solid ${c.border}`, padding:"12px", background:c.bg }}>
+              <div
+                key={horario}
+                onClick={async () => {
+                    const { data } = await api.get(`/turnos/${turno.turno_id}`)
+                 setTurnoSeleccionado(data)
+            }}
+            style={{ borderRadius:"8px", border:`0.5px solid ${c.border}`, padding:"12px", background:c.bg, cursor:"pointer" }}
+                onMouseEnter={e => e.currentTarget.style.opacity = "0.8"}
+                onMouseLeave={e => e.currentTarget.style.opacity = "1"}
+              >
                 <p style={{ fontSize:"13px", fontWeight:500, color:c.hora, margin:"0 0 4px" }}>{horario}</p>
                 <p style={{ fontSize:"12px", fontWeight:500, color:"#f0f0f0", margin:"0 0 2px" }}>
                   {turno.cliente?.nombre || `Cliente #${turno.cliente_id}`}
@@ -402,7 +337,7 @@ function Turnos() {
         ))}
       </div>
 
-      {/* Modal */}
+      {/* Modal nuevo turno */}
       {modalHorario && (
         <ModalNuevoTurno
           horario={modalHorario}
@@ -411,6 +346,19 @@ function Turnos() {
           onCreado={cargarTurnos}
         />
       )}
+
+      {/* Modal acciones turno existente */}
+      {turnoSeleccionado && (
+        <ModalTurno
+          turno={turnoSeleccionado}
+          onCerrar={() => setTurnoSeleccionado(null)}
+          onActualizado={() => {
+            cargarTurnos()
+            setTurnoSeleccionado(null)
+          }}
+        />
+      )}
+
     </div>
   )
 }
