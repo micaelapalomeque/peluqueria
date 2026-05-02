@@ -7,7 +7,6 @@ function App() {
     window.location.hash.replace("#", "") || "/"
   )
 
-  // Escucha cambios en el hash de la URL
   useEffect(() => {
     function handleHash() {
       setPagina(window.location.hash.replace("#", "") || "/")
@@ -16,17 +15,24 @@ function App() {
     return () => window.removeEventListener("hashchange", handleHash)
   }, [])
 
+  function navegar(path) {
+    window.location.hash = path
+    setPagina(path)
+  }
+
   return (
     <div style={{ display:"flex", minHeight:"100vh", background:"#1a1a1a" }}>
-      <Sidebar paginaActual={pagina} />
-      {pagina === "/" || pagina === ""
-        ? <Turnos />
-        : (
-          <div style={{ flex:1, padding:"2rem", color:"#888", fontSize:"14px" }}>
-            Pantalla en construcción...
-          </div>
-        )
-      }
+      <Sidebar paginaActual={pagina} onNavegar={navegar} />
+      <div style={{ flex:1, paddingBottom:"70px" }} className="main-content">
+        {pagina === "/" || pagina === ""
+          ? <Turnos />
+          : (
+            <div style={{ padding:"2rem", color:"#888", fontSize:"14px" }}>
+              Pantalla en construcción...
+            </div>
+          )
+        }
+      </div>
     </div>
   )
 }

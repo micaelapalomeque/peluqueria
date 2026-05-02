@@ -24,30 +24,35 @@ const COLORES_ESTADO = {
 }
 
 // ─────────────────────────────────────────────
-// HELPER
+// HELPER — genera 7 días desde un offset de semana
 // ─────────────────────────────────────────────
 
-function generarDias() {
+function generarDias(offset = 0) {
   const nombres = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"]
   const hoy = new Date()
+  const hoyStr = (() => {
+    const h = new Date()
+    return `${h.getFullYear()}-${String(h.getMonth()+1).padStart(2,"0")}-${String(h.getDate()).padStart(2,"0")}`
+  })()
+
   return Array.from({ length: 7 }, (_, i) => {
     const fecha = new Date(hoy)
-    fecha.setDate(hoy.getDate() + i)
-
-    // ← CAMBIO: construir fecha sin conversión UTC
+    fecha.setDate(hoy.getDate() + offset * 7 + i)
     const year  = fecha.getFullYear()
     const month = String(fecha.getMonth() + 1).padStart(2, "0")
     const day   = String(fecha.getDate()).padStart(2, "0")
     const fechaStr = `${year}-${month}-${day}`
-
     return {
-      label:  nombres[fecha.getDay()],
-      numero: fecha.getDate(),
-      fecha:  fechaStr,  // ← antes era fecha.toISOString().split("T")[0]
-      titulo: fecha.toLocaleDateString("es-AR", { weekday:"long", day:"numeric", month:"long" }),
+      label:    nombres[fecha.getDay()],
+      numero:   fecha.getDate(),
+      fecha:    fechaStr,
+      titulo:   fecha.toLocaleDateString("es-AR", { weekday:"long", day:"numeric", month:"long" }),
+      esHoy:    fechaStr === hoyStr,
+      esPasado: fecha < new Date(new Date().setHours(0,0,0,0)),
     }
   })
 }
+
 // ─────────────────────────────────────────────
 // COMPONENTE — Buscador con dropdown
 // ─────────────────────────────────────────────
@@ -217,12 +222,13 @@ function ModalNuevoTurno({ horario, dia, onCerrar, onCreado }) {
 // ─────────────────────────────────────────────
 
 function Turnos() {
-  const dias = generarDias()
+  const [offsetSemana,      setOffsetSemana]      = useState(0)
+  const dias                                       = generarDias(offsetSemana)
   const [diaSeleccionado,   setDiaSeleccionado]   = useState(dias[0])
   const [turnos,            setTurnos]            = useState([])
   const [cargando,          setCargando]          = useState(false)
   const [modalHorario,      setModalHorario]      = useState(null)
-  const [turnoSeleccionado, setTurnoSeleccionado] = useState(null) // ← ADENTRO del componente
+  const [turnoSeleccionado, setTurnoSeleccionado] = useState(null)
 
   function cargarTurnos() {
     setCargando(true)
@@ -234,24 +240,25 @@ function Turnos() {
 
   useEffect(() => { cargarTurnos() }, [diaSeleccionado])
 
-function turnoDeEsteHorario(horario) {
-  const estadosOcultos = ["cancelado", "ausente"]
-  const resultado = turnos.find(t => {
-    const fechaHora  = t.fecha_hora_inicio.replace(" ", "T")
-    const fechaTurno = fechaHora.split("T")[0]
-    const horaTurno  = fechaHora.split("T")[1]?.slice(0, 5)
-    return (
-      fechaTurno === diaSeleccionado.fecha &&
-      horaTurno  === horario &&
-      !estadosOcultos.includes(t.estado)
-    )
-  })
-  if (horario === "08:00") {
-    console.log("Buscando 08:00 — diaSeleccionado.fecha:", diaSeleccionado.fecha)
-    console.log("Turnos candidatos:", turnos.filter(t => t.fecha_hora_inicio.includes("08:00")))
+  function turnoDeEsteHorario(horario) {
+    const estadosOcultos = ["cancelado", "ausente"]
+    return turnos.find(t => {
+      const fechaHora  = t.fecha_hora_inicio.replace(" ", "T")
+      const fechaTurno = fechaHora.split("T")[0]
+      const horaTurno  = fechaHora.split("T")[1]?.slice(0, 5)
+      return (
+        fechaTurno === diaSeleccionado.fecha &&
+        horaTurno  === horario &&
+        !estadosOcultos.includes(t.estado)
+      )
+    })
   }
-  return resultado
-}
+
+  function irAOffset(nuevoOffset) {
+    setOffsetSemana(nuevoOffset)
+    setDiaSeleccionado(generarDias(nuevoOffset)[0])
+  }
+
   return (
     <div style={{ flex:1, padding:"1.5rem", background:"#1a1a1a", overflowY:"auto" }}>
 
@@ -263,21 +270,73 @@ function turnoDeEsteHorario(horario) {
           </p>
           <p style={{ fontSize:"12px", color:"#888", margin:"2px 0 0" }}>Turnos del día</p>
         </div>
+        <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
+          <button
+            onClick={() => irAOffset(0)}
+            style={{ padding:"6px 12px", borderRadius:"6px", border:"0.5px solid #333", background:"#242424", color:"#888", fontSize:"12px", cursor:"pointer" }}
+          >
+            Hoy
+          </button>
+          <input
+            type="date"
+            onChange={e => {
+              const val = e.target.value
+              if (!val) return
+              const f = new Date(val + "T00:00:00")
+              const hoy = new Date()
+              hoy.setHours(0,0,0,0)
+              const diffDias = Math.floor((f - hoy) / (1000 * 60 * 60 * 24))
+              const nuevoOffset = Math.floor(diffDias / 7)
+              const year  = f.getFullYear()
+              const month = String(f.getMonth() + 1).padStart(2, "0")
+              const day   = String(f.getDate()).padStart(2, "0")
+              const fechaStr = `${year}-${month}-${day}`
+              setOffsetSemana(nuevoOffset)
+              const diasNuevos = generarDias(nuevoOffset)
+              const diaEncontrado = diasNuevos.find(d => d.fecha === fechaStr) || diasNuevos[0]
+              setDiaSeleccionado(diaEncontrado)
+            }}
+            style={{ padding:"6px 10px", background:"#242424", border:"0.5px solid #333", borderRadius:"6px", color:"#f0f0f0", fontSize:"12px", cursor:"pointer" }}
+          />
+        </div>
       </div>
 
-      {/* Selector de días */}
-      <div style={{ display:"flex", gap:"8px", marginBottom:"1.25rem", overflowX:"auto", paddingBottom:"4px" }}>
-        {dias.map(dia => {
-          const activo = dia.fecha === diaSeleccionado.fecha
-          return (
-            <button key={dia.fecha} onClick={() => setDiaSeleccionado(dia)}
-              style={{ padding:"8px 12px", borderRadius:"8px", minWidth:"64px", border: activo ? "0.5px solid #CC0000" : "0.5px solid #333", background: activo ? "#2a0a0a" : "#242424", color: activo ? "#ff3333" : "#888", cursor:"pointer", textAlign:"center" }}>
-              <div style={{ fontSize:"11px" }}>{dia.label}</div>
-              <div style={{ fontSize:"15px", fontWeight:500 }}>{dia.numero}</div>
-            </button>
-          )
-        })}
-      </div>
+    {/* Selector de días con flechas */}
+<div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"1.25rem" }}>
+  <button
+    onClick={() => irAOffset(offsetSemana - 1)}
+    style={{ padding:"6px 10px", borderRadius:"6px", border:"0.5px solid #333", background:"#242424", color:"#888", cursor:"pointer", flexShrink:0 }}
+  >←</button>
+
+  <div style={{ display:"flex", gap:"6px", flex:1, justifyContent:"center" }}>
+    {dias.map(dia => {
+      const activo = dia.fecha === diaSeleccionado.fecha
+      return (
+        <button
+          key={dia.fecha}
+          onClick={() => setDiaSeleccionado(dia)}
+          style={{
+            padding:"8px 12px", borderRadius:"8px", minWidth:"64px",
+            border:      activo ? "0.5px solid #CC0000" : "0.5px solid #333",
+            background:  activo ? "#2a0a0a" : "#242424",
+            color:       activo ? "#ff3333" : dia.esPasado ? "#555" : "#888",
+            cursor:"pointer", textAlign:"center",
+            opacity: dia.esPasado ? 0.7 : 1,
+          }}
+        >
+          <div style={{ fontSize:"11px" }}>{dia.label}</div>
+          <div style={{ fontSize:"15px", fontWeight:500 }}>{dia.numero}</div>
+          {dia.esHoy && <div style={{ fontSize:"9px", color:"#CC0000" }}>hoy</div>}
+        </button>
+      )
+    })}
+  </div>
+
+  <button
+    onClick={() => irAOffset(offsetSemana + 1)}
+    style={{ padding:"6px 10px", borderRadius:"6px", border:"0.5px solid #333", background:"#242424", color:"#888", cursor:"pointer", flexShrink:0 }}
+  >→</button>
+</div>
 
       {/* Grilla de turnos */}
       {cargando ? (
@@ -289,10 +348,13 @@ function turnoDeEsteHorario(horario) {
 
             if (!turno) {
               return (
-                <div key={horario} onClick={() => setModalHorario(horario)}
+                <div
+                  key={horario}
+                  onClick={() => setModalHorario(horario)}
                   style={{ borderRadius:"8px", border:"0.5px solid #333", padding:"12px", background:"#242424", cursor:"pointer" }}
                   onMouseEnter={e => { e.currentTarget.style.borderColor = "#CC0000"; e.currentTarget.style.background = "#2a0a0a" }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = "#333";    e.currentTarget.style.background = "#242424" }}>
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = "#333";    e.currentTarget.style.background = "#242424" }}
+                >
                   <p style={{ fontSize:"13px", fontWeight:500, color:"#555", margin:"0 0 4px" }}>{horario}</p>
                   <p style={{ fontSize:"12px", color:"#444", margin:0 }}>Libre</p>
                 </div>
@@ -304,10 +366,10 @@ function turnoDeEsteHorario(horario) {
               <div
                 key={horario}
                 onClick={async () => {
-                    const { data } = await api.get(`/turnos/${turno.turno_id}`)
-                 setTurnoSeleccionado(data)
-            }}
-            style={{ borderRadius:"8px", border:`0.5px solid ${c.border}`, padding:"12px", background:c.bg, cursor:"pointer" }}
+                  const { data } = await api.get(`/turnos/${turno.turno_id}`)
+                  setTurnoSeleccionado(data)
+                }}
+                style={{ borderRadius:"8px", border:`0.5px solid ${c.border}`, padding:"12px", background:c.bg, cursor:"pointer" }}
                 onMouseEnter={e => e.currentTarget.style.opacity = "0.8"}
                 onMouseLeave={e => e.currentTarget.style.opacity = "1"}
               >
@@ -358,7 +420,6 @@ function turnoDeEsteHorario(horario) {
           }}
         />
       )}
-
     </div>
   )
 }

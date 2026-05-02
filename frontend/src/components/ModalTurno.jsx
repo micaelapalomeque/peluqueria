@@ -344,9 +344,9 @@ function ModalTurno({ turno: turnoInicial, onCerrar, onActualizado }) {
         {/* CONFIRMADO */}
         {estado === "confirmado" && (
           <>
-            <Btn variante="green" onClick={() => accion("asistido")} disabled={cargando}>✓ Marcar asistido</Btn>
-            <Btn variante="dark"  onClick={() => accion("ausente", "¿Marcar al cliente como ausente?")} disabled={cargando}>👻 Marcar ausente</Btn>
-            <Btn variante="dark"  onClick={() => accion("cancelar", "¿Cancelar este turno?")} disabled={cargando}>✕ Cancelar turno</Btn>
+            <Btn variante="green" onClick={() => accion("asistido")} disabled={cargando}> Marcar asistido</Btn>
+            <Btn variante="dark"  onClick={() => accion("ausente", "¿Marcar al cliente como ausente?")} disabled={cargando}> Marcar ausente</Btn>
+            <Btn variante="dark"  onClick={() => accion("cancelar", "¿Cancelar este turno?")} disabled={cargando}> Cancelar turno</Btn>
           </>
         )}
 
