@@ -46,20 +46,12 @@ class ServicioCreate(BaseModel):
     nombre:       str
     duracion:     int
     precio_total: Decimal
-    monto_senia:  Optional[Decimal] = None
-
-    @validator("monto_senia")
-    def validar_senia(cls, v, values):
-        if v is not None and "precio_total" in values and v > values["precio_total"]:
-            raise ValueError("La seña no puede ser mayor al precio total")
-        return v
 
 
 class ServicioUpdate(BaseModel):
     nombre:       Optional[str]     = None
     duracion:     Optional[int]     = None
     precio_total: Optional[Decimal] = None
-    monto_senia:  Optional[Decimal] = None
 
 
 class ServicioResponse(BaseModel):

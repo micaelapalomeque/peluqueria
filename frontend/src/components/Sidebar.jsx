@@ -2,10 +2,10 @@ import { useState, useEffect } from "react"
 import { TEMA } from "../theme"
 
 const links = [
-  { nombre: "Turnos",           path: "/",          icono: "📅" },
-  { nombre: "Clientes",         path: "/clientes",  icono: "👤" },
-  { nombre: "Servicios",        path: "/servicios", icono: "✂️" },
-  { nombre: "Cuenta corriente", path: "/cuenta",    icono: "💰" },
+  { nombre: "Turnos",           path: "",          icono: "📅" },
+  { nombre: "Clientes",         path: "clientes",  icono: "👤" },
+  { nombre: "Servicios",        path: "servicios", icono: "✂️" },
+  { nombre: "Cuenta corriente", path: "cuenta",    icono: "💰" },
 ]
 
 function Sidebar({ paginaActual, onNavegar }) {
@@ -36,9 +36,9 @@ function Sidebar({ paginaActual, onNavegar }) {
                 flex:1, padding:"10px 4px 14px",
                 display:"flex", flexDirection:"column", alignItems:"center", gap:"4px",
                 cursor:"pointer",
-                color:       activo ? TEMA.primario : TEMA.textoTerciario,
-                borderTop:   activo ? `2px solid ${TEMA.primario}` : "2px solid transparent",
-                background:  activo ? TEMA.primarioBg : "transparent",
+                color:      activo ? TEMA.primario : TEMA.textoTerciario,
+                borderTop:  activo ? `2px solid ${TEMA.primario}` : "2px solid transparent",
+                background: activo ? TEMA.primarioBg : "transparent",
               }}
             >
               <span style={{ fontSize:"18px" }}>{link.icono}</span>

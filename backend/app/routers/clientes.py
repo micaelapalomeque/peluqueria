@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app import models, schemas
+from sqlalchemy import func
 
 router = APIRouter(prefix="/clientes", tags=["Clientes"])
 
@@ -45,6 +46,38 @@ from typing import List
 def listar_clientes(db: Session = Depends(get_db)):
     return db.query(models.Cliente).all()
 
+# RANKING DE CLIENTES POR TURNOS COMPLETADOS
+@router.get("/ranking/frecuentes")
+def clientes_frecuentes(db: Session = Depends(get_db)):
+    resultados = (
+        db.query(
+            models.Cliente.id,
+            models.Cliente.nombre,
+            models.Cliente.celular,
+            models.Cliente.activo,
+            func.count(models.Turno.turno_id).label("total_turnos")
+        )
+        .outerjoin(
+            models.Turno,
+            (models.Turno.cliente_id == models.Cliente.id) &
+            (models.Turno.estado.in_(["completado", "asistido"]))
+        )
+        .filter(models.Cliente.activo == True)
+        .group_by(models.Cliente.id)
+        .order_by(func.count(models.Turno.turno_id).desc())
+        .all()
+    )
+
+    return [
+        {
+            "id":           r.id,
+            "nombre":       r.nombre,
+            "celular":      r.celular,
+            "activo":       r.activo,
+            "total_turnos": r.total_turnos,
+        }
+        for r in resultados
+    ]
 from fastapi import HTTPException
 
 #OBTENEMOS CLIENTE POR ID
@@ -123,5 +156,6 @@ def dar_alta_cliente(cliente_id: int, db: Session = Depends(get_db)):
 
     db.commit()
     db.refresh(cliente)
+
 
     return cliente
