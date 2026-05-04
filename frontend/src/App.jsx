@@ -3,6 +3,7 @@ import Sidebar from "./components/Sidebar"
 import Turnos from "./pages/Turnos"
 import Clientes from "./pages/Clientes"
 import Servicios from "./pages/Servicios"
+import CuentaCorriente from "./pages/CuentaCorriente"
 
 function App() {
   const [pagina, setPagina] = useState(
@@ -34,7 +35,6 @@ function App() {
       <Sidebar paginaActual={pagina} onNavegar={navegar} />
       <div style={{ flex:1, paddingBottom:"70px" }} className="main-content">
 
-        {/* Header mobile con logo — solo visible en celular */}
         {esMobile && (
           <div style={{
             display:"flex", alignItems:"center", gap:"10px",
@@ -49,9 +49,10 @@ function App() {
           </div>
         )}
 
-        {pagina === "" || pagina === "/"  ? <Turnos />    :
-         pagina === "clientes"            ? <Clientes />  :
-         pagina === "servicios" ? <Servicios /> :
+        {pagina === "" || pagina === "/" ? <Turnos />          :
+         pagina === "clientes"           ? <Clientes />        :
+         pagina === "servicios"          ? <Servicios />       :
+         pagina === "cuenta"             ? <CuentaCorriente /> :
          (
           <div style={{ padding:"2rem", color:"#888", fontSize:"14px" }}>
             Pantalla en construcción...
