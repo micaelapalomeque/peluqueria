@@ -26,7 +26,7 @@ def _calcular_fin(fecha_inicio, duracion_minutos: int):
 def _hay_conflicto_horario(db: Session, fecha_inicio, fecha_fin, excluir_turno_id: int = None) -> bool:
     query = (
         db.query(Turno)
-        .filter(Turno.estado.notin_(["cancelado"]))
+        .filter(Turno.estado.notin_(["cancelado", "ausente"]))
         .filter(Turno.fecha_hora_inicio < fecha_fin)
         .filter(Turno.fecha_hora_fin > fecha_inicio)
     )
@@ -257,23 +257,24 @@ def marcar_ausente(turno_id: int, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(turno)
     return turno
+
 @router.get("/reporte/estados")
-def reporte_estados(db: Session = Depends(get_db)):
-    """Tasa de asistencia vs ausencia vs cancelación"""
-    from sqlalchemy import func
-    resultados = (
-        db.query(Turno.estado, func.count(Turno.turno_id).label("total"))
-        .group_by(Turno.estado)
-        .all()
-    )
-    return [{ "estado": r.estado, "total": r.total } for r in resultados]
+def reporte_estados(mes: int = None, anio: int = None, db: Session = Depends(get_db)):
+    from sqlalchemy import func, extract
+    from datetime import datetime
+    query = db.query(Turno.estado, func.count(Turno.turno_id).label("total")).group_by(Turno.estado)
+    if mes and anio:
+        query = query.filter(
+            extract("month", Turno.fecha_hora_inicio) == mes,
+            extract("year",  Turno.fecha_hora_inicio) == anio
+        )
+    return [{ "estado": r.estado, "total": r.total } for r in query.all()]
 
 
 @router.get("/reporte/dias-semana")
-def reporte_dias_semana(db: Session = Depends(get_db)):
-    """Turnos por día de la semana"""
+def reporte_dias_semana(mes: int = None, anio: int = None, db: Session = Depends(get_db)):
     from sqlalchemy import func, extract
-    resultados = (
+    query = (
         db.query(
             extract("dow", Turno.fecha_hora_inicio).label("dia"),
             func.count(Turno.turno_id).label("total")
@@ -281,17 +282,20 @@ def reporte_dias_semana(db: Session = Depends(get_db)):
         .filter(Turno.estado.notin_(["cancelado"]))
         .group_by(extract("dow", Turno.fecha_hora_inicio))
         .order_by(extract("dow", Turno.fecha_hora_inicio))
-        .all()
     )
+    if mes and anio:
+        query = query.filter(
+            extract("month", Turno.fecha_hora_inicio) == mes,
+            extract("year",  Turno.fecha_hora_inicio) == anio
+        )
     nombres = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"]
-    return [{ "dia": nombres[int(r.dia)], "total": r.total } for r in resultados]
+    return [{ "dia": nombres[int(r.dia)], "total": r.total } for r in query.all()]
 
 
 @router.get("/reporte/hora-pico")
-def reporte_hora_pico(db: Session = Depends(get_db)):
-    """Horarios con más turnos"""
+def reporte_hora_pico(mes: int = None, anio: int = None, db: Session = Depends(get_db)):
     from sqlalchemy import func, extract
-    resultados = (
+    query = (
         db.query(
             extract("hour", Turno.fecha_hora_inicio).label("hora"),
             func.count(Turno.turno_id).label("total")
@@ -299,6 +303,10 @@ def reporte_hora_pico(db: Session = Depends(get_db)):
         .filter(Turno.estado.notin_(["cancelado"]))
         .group_by(extract("hour", Turno.fecha_hora_inicio))
         .order_by(extract("hour", Turno.fecha_hora_inicio))
-        .all()
     )
-    return [{ "hora": f"{int(r.hora):02d}:00", "total": r.total } for r in resultados]
+    if mes and anio:
+        query = query.filter(
+            extract("month", Turno.fecha_hora_inicio) == mes,
+            extract("year",  Turno.fecha_hora_inicio) == anio
+        )
+    return [{ "hora": f"{int(r.hora):02d}:00", "total": r.total } for r in query.all()]

@@ -53,8 +53,9 @@ def listar_servicios(db: Session = Depends(get_db)):
 # ── REPORTE (debe ir antes de /{servicio_id}) ─────────────────────────────────
 
 @router.get("/reporte/ranking")
-def reporte_ranking_servicios(db: Session = Depends(get_db)):
-    resultados = (
+def reporte_ranking_servicios(mes: int = None, anio: int = None, db: Session = Depends(get_db)):
+    from sqlalchemy import extract
+    query = (
         db.query(
             Servicio.id,
             Servicio.nombre,
@@ -62,11 +63,15 @@ def reporte_ranking_servicios(db: Session = Depends(get_db)):
             func.count(Turno.turno_id).label("total_turnos"),
         )
         .join(Turno, Turno.servicio_id == Servicio.id)
-        .filter(Turno.estado == "completado")
+        .filter(Turno.estado.in_(["completado", "asistido"]))
         .group_by(Servicio.id)
         .order_by(func.count(Turno.turno_id).desc())
-        .all()
     )
+    if mes and anio:
+        query = query.filter(
+            extract("month", Turno.fecha_hora_inicio) == mes,
+            extract("year",  Turno.fecha_hora_inicio) == anio
+        )
     return [
         {
             "id":           r.id,
@@ -75,12 +80,10 @@ def reporte_ranking_servicios(db: Session = Depends(get_db)):
             "total_turnos": r.total_turnos,
             "ingresos":     round(float(r.precio_total) * r.total_turnos, 2),
         }
-        for r in resultados
+        for r in query.all()
     ]
 
-
 # ── CRUD por ID (deben ir después de las rutas fijas) ─────────────────────────
-
 @router.get("/{servicio_id}", response_model=schemas.ServicioResponse)
 def obtener_servicio(servicio_id: int, db: Session = Depends(get_db)):
     servicio = db.query(models.Servicio).filter(models.Servicio.id == servicio_id).first()

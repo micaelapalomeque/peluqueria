@@ -30,6 +30,24 @@ function formatPeso(valor) {
   return `$${Number(valor).toLocaleString("es-AR")}`
 }
 
+function SelectorMesAnio({ mes, anio, setMes, setAnio }) {
+  const hoy = new Date()
+  const nombresMeses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
+  const anios = [hoy.getFullYear() - 1, hoy.getFullYear()]
+  return (
+    <div style={{ display:"flex", gap:"8px", marginBottom:"1.25rem" }}>
+      <select value={mes} onChange={e => setMes(Number(e.target.value))}
+        style={{ flex:1, padding:"6px 10px", background: TEMA.superficie, border:`0.5px solid ${TEMA.borde}`, borderRadius:"6px", color: TEMA.textoPrimario, fontSize:"12px" }}>
+        {nombresMeses.map((n, i) => <option key={i+1} value={i+1}>{n}</option>)}
+      </select>
+      <select value={anio} onChange={e => setAnio(Number(e.target.value))}
+        style={{ padding:"6px 10px", background: TEMA.superficie, border:`0.5px solid ${TEMA.borde}`, borderRadius:"6px", color: TEMA.textoPrimario, fontSize:"12px" }}>
+        {anios.map(a => <option key={a} value={a}>{a}</option>)}
+      </select>
+    </div>
+  )
+}
+
 function TooltipCustom({ active, payload, label }) {
   if (active && payload && payload.length) {
     return (
@@ -387,24 +405,13 @@ function ReporteClientes() {
 }
 
 function ReporteTurnos() {
-  const [estados,    setEstados]    = useState([])
-  const [dias,       setDias]       = useState([])
-  const [horarios,   setHorarios]   = useState([])
-  const [cargando,   setCargando]   = useState(true)
-
-  useEffect(() => {
-    setCargando(true)
-    Promise.all([
-      api.get("/turnos/reporte/estados"),
-      api.get("/turnos/reporte/dias-semana"),
-      api.get("/turnos/reporte/hora-pico"),
-    ]).then(([estadosRes, diasRes, horariosRes]) => {
-      setEstados(estadosRes.data)
-      setDias(diasRes.data)
-      setHorarios(horariosRes.data)
-    }).catch(console.error)
-      .finally(() => setCargando(false))
-  }, [])
+  const hoy = new Date()
+  const [mes,      setMes]      = useState(hoy.getMonth() + 1)
+  const [anio,     setAnio]     = useState(hoy.getFullYear())
+  const [estados,  setEstados]  = useState([])
+  const [dias,     setDias]     = useState([])
+  const [horarios, setHorarios] = useState([])
+  const [cargando, setCargando] = useState(true)
 
   const coloresEstado = {
     completado: "#44cc44",
@@ -415,18 +422,29 @@ function ReporteTurnos() {
     confirmado: "#00bfff",
   }
 
+  useEffect(() => {
+    setCargando(true)
+    Promise.all([
+      api.get(`/turnos/reporte/estados?mes=${mes}&anio=${anio}`),
+      api.get(`/turnos/reporte/dias-semana?mes=${mes}&anio=${anio}`),
+      api.get(`/turnos/reporte/hora-pico?mes=${mes}&anio=${anio}`),
+    ]).then(([estadosRes, diasRes, horariosRes]) => {
+      setEstados(estadosRes.data)
+      setDias(diasRes.data)
+      setHorarios(horariosRes.data)
+    }).catch(console.error)
+      .finally(() => setCargando(false))
+  }, [mes, anio])
+
   return (
     <div>
-      <p style={{ fontSize:"15px", fontWeight:500, color: TEMA.textoPrimario, margin:"0 0 1.5rem" }}>
+      <p style={{ fontSize:"15px", fontWeight:500, color: TEMA.textoPrimario, margin:"0 0 1rem" }}>
         Reportes de turnos
       </p>
-
+      <SelectorMesAnio mes={mes} anio={anio} setMes={setMes} setAnio={setAnio} />
       {cargando ? <p style={{ color: TEMA.textoSecundario, fontSize:"13px" }}>Cargando...</p> : (
         <>
-          {/* Tasa de estados */}
-          <p style={{ fontSize:"14px", fontWeight:500, color: TEMA.textoPrimario, margin:"0 0 12px" }}>
-            Estados de turnos
-          </p>
+          <p style={{ fontSize:"14px", fontWeight:500, color: TEMA.textoPrimario, margin:"0 0 12px" }}>Estados de turnos</p>
           <div style={{ display:"flex", gap:"10px", flexWrap:"wrap", marginBottom:"2rem" }}>
             {estados.map(e => (
               <div key={e.estado} style={{ flex:1, minWidth:"120px", background: TEMA.superficie, border:`0.5px solid ${TEMA.borde}`, borderRadius:"8px", padding:"12px 14px" }}>
@@ -435,25 +453,19 @@ function ReporteTurnos() {
               </div>
             ))}
           </div>
-
-          {/* Días de la semana */}
-          <p style={{ fontSize:"14px", fontWeight:500, color: TEMA.textoPrimario, margin:"0 0 12px" }}>
-            Turnos por día de la semana
-          </p>
-          <ResponsiveContainer width="100%" height={220} style={{ marginBottom:"2rem" }}>
-            <BarChart data={dias} margin={{ top:10, right:10, left:0, bottom:5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" vertical={false} />
-              <XAxis dataKey="dia" tick={{ fill: TEMA.textoSecundario, fontSize:12 }} axisLine={{ stroke:"#333" }} tickLine={false} />
-              <YAxis tick={{ fill: TEMA.textoSecundario, fontSize:11 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background:"#1e1e1e", border:"0.5px solid #444", borderRadius:"6px", fontSize:"12px" }} />
-              <Bar dataKey="total" fill="#CC0000" radius={[4,4,0,0]} maxBarSize={50} />
-            </BarChart>
-          </ResponsiveContainer>
-
-          {/* Hora pico */}
-          <p style={{ fontSize:"14px", fontWeight:500, color: TEMA.textoPrimario, margin:"0 0 12px" }}>
-            Hora pico
-          </p>
+          <p style={{ fontSize:"14px", fontWeight:500, color: TEMA.textoPrimario, margin:"0 0 12px" }}>Turnos por día de la semana</p>
+          <div style={{ marginBottom:"2rem" }}>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={dias} margin={{ top:10, right:10, left:0, bottom:5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" vertical={false} />
+                <XAxis dataKey="dia" tick={{ fill: TEMA.textoSecundario, fontSize:12 }} axisLine={{ stroke:"#333" }} tickLine={false} />
+                <YAxis tick={{ fill: TEMA.textoSecundario, fontSize:11 }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ background:"#1e1e1e", border:"0.5px solid #444", borderRadius:"6px", fontSize:"12px" }} />
+                <Bar dataKey="total" fill="#CC0000" radius={[4,4,0,0]} maxBarSize={50} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <p style={{ fontSize:"14px", fontWeight:500, color: TEMA.textoPrimario, margin:"0 0 12px" }}>Hora pico</p>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={horarios} margin={{ top:10, right:10, left:0, bottom:5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" vertical={false} />
@@ -470,24 +482,30 @@ function ReporteTurnos() {
 }
 
 function ReporteServicios() {
+  const hoy = new Date()
+  const [mes,       setMes]      = useState(hoy.getMonth() + 1)
+  const [anio,      setAnio]     = useState(hoy.getFullYear())
   const [servicios, setServicios] = useState([])
   const [cargando,  setCargando]  = useState(true)
 
   useEffect(() => {
     setCargando(true)
-    api.get("/servicios/reporte/ranking")
+    api.get(`/servicios/reporte/ranking?mes=${mes}&anio=${anio}`)
       .then(res => setServicios(res.data))
       .catch(console.error)
       .finally(() => setCargando(false))
-  }, [])
+  }, [mes, anio])
 
   return (
     <div>
-      <p style={{ fontSize:"15px", fontWeight:500, color: TEMA.textoPrimario, margin:"0 0 1.5rem" }}>
+      <p style={{ fontSize:"15px", fontWeight:500, color: TEMA.textoPrimario, margin:"0 0 1rem" }}>
         Reportes de servicios
       </p>
+      <SelectorMesAnio mes={mes} anio={anio} setMes={setMes} setAnio={setAnio} />
       {cargando ? <p style={{ color: TEMA.textoSecundario, fontSize:"13px" }}>Cargando...</p> : (
-        <>
+        servicios.length === 0 ? (
+          <p style={{ color: TEMA.textoTerciario, fontSize:"13px" }}>Sin datos para este período</p>
+        ) : (
           <div style={{ border:`0.5px solid ${TEMA.bordeSuave}`, borderRadius:"8px", overflow:"hidden" }}>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 80px 80px 100px", padding:"8px 14px", borderBottom:`0.5px solid ${TEMA.bordeSuave}`, fontSize:"11px", color: TEMA.textoTerciario, background: TEMA.superficie }}>
               <span>Servicio</span>
@@ -513,7 +531,7 @@ function ReporteServicios() {
               </div>
             ))}
           </div>
-        </>
+        )
       )}
     </div>
   )
@@ -551,7 +569,6 @@ function Reportes() {
 
       {abierto && (
         <div style={{ background: TEMA.superficieAlta, border:`0.5px solid ${TEMA.bordeSuave}`, borderRadius:"8px", padding:"1.5rem" }}>
-
           {abierto === "financiero" && (
             <div>
               <ReporteFinanciero />
@@ -562,19 +579,9 @@ function Reportes() {
               </div>
             </div>
           )}
-
-          {abierto === "turnos" &&<ReporteTurnos />}
-
-          {abierto === "clientes" && <ReporteClientes />}
-
-          {abierto === "servicios" && (
-            <div>
-              <ReporteServicios />
-              <p style={{ fontSize:"15px", fontWeight:500, color: TEMA.textoPrimario, margin:"0 0 1rem" }}>Reportes de servicios</p>
-              <p style={{ fontSize:"13px", color: TEMA.textoSecundario }}>Próximamente — servicios más solicitados e ingresos por servicio.</p>
-            </div>
-          )}
-
+          {abierto === "turnos"    && <ReporteTurnos />}
+          {abierto === "clientes"  && <ReporteClientes />}
+          {abierto === "servicios" && <ReporteServicios />}
         </div>
       )}
     </div>

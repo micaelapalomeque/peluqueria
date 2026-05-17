@@ -58,25 +58,33 @@ def reporte_mes_actual(db: Session = Depends(get_db)):
     inicio = datetime(hoy.year, hoy.month, 1)
 
     cobrado = db.query(func.sum(Pago.monto)).filter(
-    Pago.estado_pago == "pagado",
-    Pago.fecha_pago  >= inicio,
-    Pago.fecha_pago  <= hoy,
-    Pago.tipo_pago.notin_(["saldo_favor"]),  # excluir saldo_favor porque no es ingreso nuevo
-).scalar() or 0
+        Pago.estado_pago == "pagado",
+        Pago.fecha_pago  >= inicio,
+        Pago.fecha_pago  <= hoy,
+        Pago.tipo_pago.notin_(["saldo_favor"]),
+    ).scalar() or 0
 
-    # Calcular adeudado desde el balance
+    # Calcular adeudado desde el balance excluyendo ausentes
     clientes = db.query(Cliente).filter(Cliente.activo == True).all()
     adeudado = 0
     for cliente in clientes:
         turnos = db.query(Turno).filter(
             Turno.cliente_id == cliente.id,
-            Turno.estado.notin_(["cancelado", "reservado"])
+            Turno.estado.notin_(["cancelado", "reservado", "ausente"])
         ).all()
+
+        turnos_ausentes_ids = [
+            t.turno_id for t in db.query(Turno)
+            .filter(Turno.cliente_id == cliente.id, Turno.estado == "ausente").all()
+        ]
+
         pagos = db.query(Pago).filter(
             Pago.cliente_id  == cliente.id,
             Pago.estado_pago == "pagado",
-            Pago.tipo_pago.notin_(["propina", "recargo"])
+            Pago.tipo_pago.notin_(["propina", "recargo"]),
+            ~Pago.turno_id.in_(turnos_ausentes_ids) if turnos_ausentes_ids else True
         ).all()
+
         total_debe  = sum(float(t.monto_cobrado or t.monto_total) for t in turnos)
         total_haber = sum(float(p.monto) for p in pagos)
         saldo = total_debe - total_haber
@@ -172,9 +180,9 @@ def ingresos_por_semana(fecha_inicio: str, db: Session = Depends(get_db)):
         .all()
     )
 
-    nombres = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"]
+    nombres = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
     resultado = []
-    for i in range(6):
+    for i in range(7):
         dia     = inicio + timedelta(days=i)
         dia_str = dia.strftime("%Y-%m-%d")
         pago_dia = next((p for p in pagos if str(p.dia) == dia_str), None)
