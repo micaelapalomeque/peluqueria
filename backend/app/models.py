@@ -29,7 +29,7 @@ class Cliente(Base):
     activo      = Column(Boolean, nullable=False, default=True)
     fecha_alta  = Column(DateTime, nullable=False, server_default=func.now())
     observacion = Column(String(255))
-    saldo_favor = Column(Numeric(10, 2), nullable=False, default=0)  # NUEVO
+    saldo_corriente = Column(Numeric(10, 2), default=0)
 
     turnos = relationship("Turno", back_populates="cliente")
     pagos  = relationship("Pago",  back_populates="cliente")

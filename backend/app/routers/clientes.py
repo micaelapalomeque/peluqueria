@@ -76,14 +76,94 @@ def clientes_frecuentes(db: Session = Depends(get_db)):
     ]
 
 
-# BALANCE DEL CLIENTE
+# TOP 10 CLIENTES CON MÁS ASISTENCIAS
+@router.get("/ranking/asistencias")
+def ranking_asistencias(mes: int = None, anio: int = None, db: Session = Depends(get_db)):
+    from sqlalchemy import extract
+    query = (
+        db.query(
+            models.Cliente.id,
+            models.Cliente.nombre,
+            models.Cliente.celular,
+            func.count(models.Turno.turno_id).label("total")
+        )
+        .join(models.Turno, models.Turno.cliente_id == models.Cliente.id)
+        .filter(models.Turno.estado.in_(["completado", "asistido"]))
+        .group_by(models.Cliente.id)
+        .order_by(func.count(models.Turno.turno_id).desc())
+        .limit(10)
+    )
+    if mes and anio:
+        query = query.filter(
+            extract("month", models.Turno.fecha_hora_inicio) == mes,
+            extract("year",  models.Turno.fecha_hora_inicio) == anio
+        )
+    return [{ "id": r.id, "nombre": r.nombre, "celular": r.celular, "total": r.total } for r in query.all()]
+
+
+# TOP 10 CLIENTES CON MÁS AUSENCIAS
+@router.get("/ranking/ausencias")
+def ranking_ausencias(mes: int = None, anio: int = None, db: Session = Depends(get_db)):
+    from sqlalchemy import extract
+    query = (
+        db.query(
+            models.Cliente.id,
+            models.Cliente.nombre,
+            models.Cliente.celular,
+            func.count(models.Turno.turno_id).label("total")
+        )
+        .join(models.Turno, models.Turno.cliente_id == models.Cliente.id)
+        .filter(models.Turno.estado == "ausente")
+        .group_by(models.Cliente.id)
+        .order_by(func.count(models.Turno.turno_id).desc())
+        .limit(10)
+    )
+    if mes and anio:
+        query = query.filter(
+            extract("month", models.Turno.fecha_hora_inicio) == mes,
+            extract("year",  models.Turno.fecha_hora_inicio) == anio
+        )
+    return [{ "id": r.id, "nombre": r.nombre, "celular": r.celular, "total": r.total } for r in query.all()]
+
+
+# TOP 10 CLIENTES CON MÁS DEUDA
+@router.get("/ranking/deudas")
+def ranking_deudas(db: Session = Depends(get_db)):
+    resultados = (
+        db.query(models.Cliente)
+        .filter(
+            models.Cliente.activo          == True,
+            models.Cliente.saldo_corriente  > 0
+        )
+        .order_by(models.Cliente.saldo_corriente.desc())
+        .limit(10)
+        .all()
+    )
+    return [
+        {
+            "id":      c.id,
+            "nombre":  c.nombre,
+            "celular": c.celular,
+            "total":   float(c.saldo_corriente),
+        }
+        for c in resultados
+    ]
+
+
+# BALANCE DE TODOS LOS CLIENTES
+@router.get("/balance/todos")
+def balance_todos_clientes(db: Session = Depends(get_db)):
+    clientes = db.query(models.Cliente).filter(models.Cliente.activo == True).all()
+    return { c.id: float(c.saldo_corriente) for c in clientes }
+
+
+# BALANCE DEL CLIENTE — con historial de movimientos
 @router.get("/{cliente_id}/balance")
 def balance_cliente(cliente_id: int, db: Session = Depends(get_db)):
     cliente = db.query(models.Cliente).filter(models.Cliente.id == cliente_id).first()
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
-    # Excluir turnos ausentes del balance
     turnos = (
         db.query(models.Turno)
         .filter(
@@ -95,7 +175,6 @@ def balance_cliente(cliente_id: int, db: Session = Depends(get_db)):
         .all()
     )
 
-    # Obtener IDs de turnos ausentes para excluir sus pagos del balance
     turnos_ausentes_ids = [
         t.turno_id for t in db.query(models.Turno)
         .filter(
@@ -109,7 +188,7 @@ def balance_cliente(cliente_id: int, db: Session = Depends(get_db)):
         .filter(
             models.Pago.cliente_id  == cliente_id,
             models.Pago.estado_pago == "pagado",
-            models.Pago.tipo_pago.notin_(["propina", "recargo"]),
+            models.Pago.tipo_pago.notin_(["propina", "recargo", "saldo_favor"]),  # ← agregar saldo_favor
             ~models.Pago.turno_id.in_(turnos_ausentes_ids) if turnos_ausentes_ids else True
         )
         .order_by(models.Pago.fecha_pago)
@@ -155,10 +234,10 @@ def balance_cliente(cliente_id: int, db: Session = Depends(get_db)):
         "cliente_id":  cliente.id,
         "nombre":      cliente.nombre,
         "movimientos": movimientos,
-        "saldo_final": round(saldo, 2),
+        "saldo_final": float(cliente.saldo_corriente),
         "total_debe":  round(total_debe, 2),
         "total_haber": round(total_haber, 2),
-        "saldo_favor": float(cliente.saldo_favor),
+        "saldo_favor": float(cliente.saldo_corriente),
     }
 
 
@@ -220,152 +299,3 @@ def dar_alta_cliente(cliente_id: int, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(cliente)
     return cliente
-
-
-# TOP 10 CLIENTES CON MÁS ASISTENCIAS
-@router.get("/ranking/asistencias")
-def ranking_asistencias(mes: int = None, anio: int = None, db: Session = Depends(get_db)):
-    from sqlalchemy import extract
-    query = (
-        db.query(
-            models.Cliente.id,
-            models.Cliente.nombre,
-            models.Cliente.celular,
-            func.count(models.Turno.turno_id).label("total")
-        )
-        .join(models.Turno, models.Turno.cliente_id == models.Cliente.id)
-        .filter(models.Turno.estado.in_(["completado", "asistido"]))
-        .group_by(models.Cliente.id)
-        .order_by(func.count(models.Turno.turno_id).desc())
-        .limit(10)
-    )
-    if mes and anio:
-        query = query.filter(
-            extract("month", models.Turno.fecha_hora_inicio) == mes,
-            extract("year",  models.Turno.fecha_hora_inicio) == anio
-        )
-    return [{ "id": r.id, "nombre": r.nombre, "celular": r.celular, "total": r.total } for r in query.all()]
-
-
-# TOP 10 CLIENTES CON MÁS AUSENCIAS
-@router.get("/ranking/ausencias")
-def ranking_ausencias(mes: int = None, anio: int = None, db: Session = Depends(get_db)):
-    from sqlalchemy import extract
-    query = (
-        db.query(
-            models.Cliente.id,
-            models.Cliente.nombre,
-            models.Cliente.celular,
-            func.count(models.Turno.turno_id).label("total")
-        )
-        .join(models.Turno, models.Turno.cliente_id == models.Cliente.id)
-        .filter(models.Turno.estado == "ausente")
-        .group_by(models.Cliente.id)
-        .order_by(func.count(models.Turno.turno_id).desc())
-        .limit(10)
-    )
-    if mes and anio:
-        query = query.filter(
-            extract("month", models.Turno.fecha_hora_inicio) == mes,
-            extract("year",  models.Turno.fecha_hora_inicio) == anio
-        )
-    return [{ "id": r.id, "nombre": r.nombre, "celular": r.celular, "total": r.total } for r in query.all()]
-
-
-# TOP 10 CLIENTES CON MÁS DEUDA
-@router.get("/ranking/deudas")
-def ranking_deudas(db: Session = Depends(get_db)):
-    clientes = db.query(models.Cliente).filter(models.Cliente.activo == True).all()
-    resultados = []
-
-    for cliente in clientes:
-        # Excluir turnos ausentes
-        turnos = (
-            db.query(models.Turno)
-            .filter(
-                models.Turno.cliente_id == cliente.id,
-                models.Turno.estado.notin_(["cancelado", "reservado", "ausente"])
-            )
-            .all()
-        )
-
-        # Excluir pagos de turnos ausentes
-        turnos_ausentes_ids = [
-            t.turno_id for t in db.query(models.Turno)
-            .filter(
-                models.Turno.cliente_id == cliente.id,
-                models.Turno.estado     == "ausente"
-            ).all()
-        ]
-
-        pagos = (
-            db.query(models.Pago)
-            .filter(
-                models.Pago.cliente_id  == cliente.id,
-                models.Pago.estado_pago == "pagado",
-                models.Pago.tipo_pago.notin_(["propina", "recargo"]),
-                ~models.Pago.turno_id.in_(turnos_ausentes_ids) if turnos_ausentes_ids else True
-            )
-            .all()
-        )
-
-        total_debe  = sum(float(t.monto_cobrado or t.monto_total) for t in turnos)
-        total_haber = sum(float(p.monto) for p in pagos)
-        saldo       = total_debe - total_haber
-
-        if saldo > 0:
-            resultados.append({
-                "id":      cliente.id,
-                "nombre":  cliente.nombre,
-                "celular": cliente.celular,
-                "total":   round(saldo, 2),
-            })
-
-    resultados.sort(key=lambda r: r["total"], reverse=True)
-    return resultados[:10]
-
-
-# BALANCE DE TODOS LOS CLIENTES
-@router.get("/balance/todos")
-def balance_todos_clientes(db: Session = Depends(get_db)):
-    clientes = db.query(models.Cliente).filter(models.Cliente.activo == True).all()
-    resultado = {}
-
-    for cliente in clientes:
-        # Excluir turnos ausentes
-        turnos = (
-            db.query(models.Turno)
-            .filter(
-                models.Turno.cliente_id == cliente.id,
-                models.Turno.estado.notin_(["cancelado", "reservado", "ausente"])
-            )
-            .all()
-        )
-
-        # Excluir pagos de turnos ausentes
-        turnos_ausentes_ids = [
-            t.turno_id for t in db.query(models.Turno)
-            .filter(
-                models.Turno.cliente_id == cliente.id,
-                models.Turno.estado     == "ausente"
-            ).all()
-        ]
-
-        pagos = (
-            db.query(models.Pago)
-            .filter(
-                models.Pago.cliente_id  == cliente.id,
-                models.Pago.estado_pago == "pagado",
-                models.Pago.tipo_pago.notin_(["propina", "recargo"]),
-                ~models.Pago.turno_id.in_(turnos_ausentes_ids) if turnos_ausentes_ids else True
-            )
-            .all()
-        )
-
-        total_debe  = sum(float(t.monto_cobrado or t.monto_total) for t in turnos)
-        total_haber = sum(float(p.monto) for p in pagos)
-        saldo       = round(total_debe - total_haber, 2)
-
-        resultado[cliente.id] = saldo
-
-    return resultado

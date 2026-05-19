@@ -92,18 +92,18 @@ def pagar_deuda(deuda_id: int, pago_in: DeudaPagoCreate, db: Session = Depends(g
     if deuda.estado == "saldada":
         raise HTTPException(status_code=400, detail="Esta deuda ya está saldada")
 
-    monto_deuda   = deuda.saldo_pendiente
-    monto_recargo = Decimal("0")
+    monto_deuda    = deuda.saldo_pendiente
+    monto_excedente = Decimal("0")
 
     if pago_in.monto > monto_deuda:
-        monto_recargo = pago_in.monto - monto_deuda
+        monto_excedente = pago_in.monto - monto_deuda
 
     # Saldar la deuda por el monto original
     deuda.monto_pagado    += monto_deuda
     deuda.saldo_pendiente  = Decimal("0")
     deuda.estado           = "saldada"
 
-    # Pago principal
+    # Pago principal — actualizar saldo_corriente
     pago_principal = Pago(
         turno_id    = deuda.turno_id,
         cliente_id  = deuda.cliente_id,
@@ -114,19 +114,21 @@ def pagar_deuda(deuda_id: int, pago_in: DeudaPagoCreate, db: Session = Depends(g
         observacion = pago_in.observacion,
     )
     db.add(pago_principal)
+    cliente.saldo_corriente -= monto_deuda
 
-    # Pago de recargo separado si hay excedente
-    if monto_recargo > 0:
-        pago_recargo = Pago(
+    # Excedente como saldo_favor — también reduce saldo_corriente futuro
+    if monto_excedente > 0:
+        pago_excedente = Pago(
             turno_id    = deuda.turno_id,
             cliente_id  = deuda.cliente_id,
-            monto       = monto_recargo,
+            monto       = monto_excedente,
             metodo_pago = pago_in.metodo_pago,
-            tipo_pago   = "recargo",
+            tipo_pago   = "saldo_favor",
             estado_pago = "pagado",
-            observacion = "Recargo por mora",
+            observacion = "Saldo a favor por excedente",
         )
-        db.add(pago_recargo)
+        db.add(pago_excedente)
+        cliente.saldo_corriente -= monto_excedente
 
     db.commit()
     db.refresh(deuda)
@@ -168,7 +170,7 @@ def resumen_cliente(cliente_id: int, db: Session = Depends(get_db)):
     return ResumenDeudaCliente(
         cliente_id        = cliente.id,
         nombre            = cliente.nombre,
-        saldo_favor       = cliente.saldo_favor,
+        saldo_favor       = cliente.saldo_corriente,
         total_adeudado    = Decimal(str(total_adeudado)),
         deudas_pendientes = deudas_activas,
     )

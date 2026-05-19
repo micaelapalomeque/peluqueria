@@ -33,13 +33,6 @@ def _actualizar_deuda(db: Session, turno_id: int, monto_pagado: Decimal) -> Opti
     return deuda
 
 
-def _aplicar_excedente_a_saldo(db: Session, cliente_id: int, monto_pagado: Decimal, deuda: Optional[Deuda]):
-    if deuda is None:
-        return
-    excedente = monto_pagado - deuda.monto_original
-    if excedente > 0:
-        cliente = _get_or_404(db, Cliente, Cliente.id, cliente_id)
-        cliente.saldo_favor += excedente
 
 
 # ── endpoints ─────────────────────────────────────────────────────────────────
@@ -53,7 +46,7 @@ def listar_pagos(db: Session = Depends(get_db)):
 
 @router.get("/reporte/mes-actual")
 def reporte_mes_actual(db: Session = Depends(get_db)):
-    from app.models import Turno, Cliente
+    from app.models import Cliente
     hoy    = datetime.now()
     inicio = datetime(hoy.year, hoy.month, 1)
 
@@ -64,34 +57,13 @@ def reporte_mes_actual(db: Session = Depends(get_db)):
         Pago.tipo_pago.notin_(["saldo_favor"]),
     ).scalar() or 0
 
-    # Calcular adeudado desde el balance excluyendo ausentes
-    clientes = db.query(Cliente).filter(Cliente.activo == True).all()
-    adeudado = 0
-    for cliente in clientes:
-        turnos = db.query(Turno).filter(
-            Turno.cliente_id == cliente.id,
-            Turno.estado.notin_(["cancelado", "reservado", "ausente"])
-        ).all()
+    # Usar saldo_corriente directamente — mucho más simple
+    adeudado = db.query(func.sum(Cliente.saldo_corriente)).filter(
+        Cliente.activo         == True,
+        Cliente.saldo_corriente > 0
+    ).scalar() or 0
 
-        turnos_ausentes_ids = [
-            t.turno_id for t in db.query(Turno)
-            .filter(Turno.cliente_id == cliente.id, Turno.estado == "ausente").all()
-        ]
-
-        pagos = db.query(Pago).filter(
-            Pago.cliente_id  == cliente.id,
-            Pago.estado_pago == "pagado",
-            Pago.tipo_pago.notin_(["propina", "recargo"]),
-            ~Pago.turno_id.in_(turnos_ausentes_ids) if turnos_ausentes_ids else True
-        ).all()
-
-        total_debe  = sum(float(t.monto_cobrado or t.monto_total) for t in turnos)
-        total_haber = sum(float(p.monto) for p in pagos)
-        saldo = total_debe - total_haber
-        if saldo > 0:
-            adeudado += saldo
-
-    adeudado = round(adeudado, 2)
+    adeudado = round(float(adeudado), 2)
     total    = float(cobrado) + adeudado
 
     return {
@@ -211,12 +183,12 @@ def reporte_metodos_pago(mes: int, anio: int, db: Session = Depends(get_db)):
         .filter(Pago.estado_pago == "pagado")
         .filter(Pago.fecha_pago >= inicio)
         .filter(Pago.fecha_pago < fin)
+        .filter(Pago.tipo_pago.notin_(["saldo_favor", "propina", "recargo"]))  # ← agregar
         .group_by(Pago.metodo_pago)
         .all()
     )
 
     return [{"metodo": p.metodo_pago, "total": float(p.total)} for p in pagos]
-
 
 # ── CRUD por ID (deben ir después de las rutas fijas) ─────────────────────────
 
@@ -237,28 +209,12 @@ def crear_pago(pago_in: PagoCreate, db: Session = Depends(get_db)):
 
     pago = Pago(**pago_in.dict())
     db.add(pago)
-    db.commit()
-    db.refresh(pago)
-    return pago
 
-
-@router.patch("/{pago_id}/confirmar", response_model=PagoResponse)
-def confirmar_pago(pago_id: int, db: Session = Depends(get_db)):
-    pago = _get_or_404(db, Pago, Pago.pago_id, pago_id)
-
-    if pago.estado_pago == "pagado":
-        raise HTTPException(status_code=400, detail="El pago ya fue confirmado")
-    if pago.estado_pago == "cancelado":
-        raise HTTPException(status_code=400, detail="No se puede confirmar un pago cancelado")
-
-    pago.estado_pago = "pagado"
-
-    deuda = None
-    if pago.turno_id:
-        deuda = _actualizar_deuda(db, pago.turno_id, pago.monto)
-
-    if pago.cliente_id:
-        _aplicar_excedente_a_saldo(db, pago.cliente_id, pago.monto, deuda)
+    # Actualizar saldo_corriente — restar lo que pagó
+    if pago_in.tipo_pago not in ["propina", "recargo"] and pago_in.cliente_id:
+        cliente = db.query(Cliente).filter(Cliente.id == pago_in.cliente_id).first()
+        if cliente:
+            cliente.saldo_corriente -= pago_in.monto
 
     db.commit()
     db.refresh(pago)
@@ -273,6 +229,12 @@ def cancelar_pago(pago_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="El pago ya está cancelado")
 
     pago.estado_pago = "cancelado"
+
+    # Revertir saldo_corriente
+    if pago.tipo_pago not in ["propina", "recargo"] and pago.cliente_id:
+        cliente = db.query(Cliente).filter(Cliente.id == pago.cliente_id).first()
+        if cliente:
+            cliente.saldo_corriente += pago.monto
 
     if pago.turno_id:
         deuda = db.query(Deuda).filter(Deuda.turno_id == pago.turno_id).first()

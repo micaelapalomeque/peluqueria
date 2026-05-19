@@ -28,13 +28,13 @@ class ClienteUpdate(BaseModel):
 
 
 class ClienteResponse(BaseModel):
-    id:          int
-    celular:     str
-    nombre:      str
-    activo:      bool
-    fecha_alta:  datetime
-    observacion: Optional[str] = None
-    saldo_favor: Decimal  # NUEVO
+    id:              int
+    celular:         str
+    nombre:          str
+    activo:          bool
+    fecha_alta:      datetime
+    observacion:     Optional[str] = None
+    saldo_corriente: Decimal  # antes saldo_favor
 
     class Config:
         orm_mode = True

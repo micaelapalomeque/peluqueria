@@ -8,40 +8,21 @@ function formatPeso(valor) {
   return `$${Number(valor).toLocaleString("es-AR")}`
 }
 
-function formatFecha(fecha) {
-  if (!fecha) return ""
-  return new Date(fecha.replace(" ", "T")).toLocaleDateString("es-AR", {
-    day:"numeric", month:"short", year:"numeric"
-  })
-}
-
 function ModalCuentaCliente({ cliente, onCerrar }) {
   const [movimientos, setMovimientos] = useState([])
   const [cargando,    setCargando]    = useState(true)
-  const [saldoFavor,  setSaldoFavor]  = useState(0)
-  const [totalDeuda,  setTotalDeuda]  = useState(0)
+  const [saldoFinal,  setSaldoFinal]  = useState(0)
 
   useEffect(() => {
-  setCargando(true)
-  api.get(`/clientes/${cliente.id}/balance`)
-    .then(res => {
-      setMovimientos(res.data.movimientos)
-      const saldo = res.data.saldo_final
-      if (saldo > 0) {
-        setTotalDeuda(saldo)
-        setSaldoFavor(0)
-      } else {
-        setTotalDeuda(0)
-        setSaldoFavor(Math.abs(saldo))
-      }
-    })
-    .catch(console.error)
-    .finally(() => setCargando(false))
-}, [cliente.id])
-
-  const saldoNeto = movimientos.length > 0
-  ? movimientos[movimientos.length - 1].saldo
-  : 0
+    setCargando(true)
+    api.get(`/clientes/${cliente.id}/balance`)
+      .then(res => {
+        setMovimientos(res.data.movimientos)
+        setSaldoFinal(res.data.saldo_final)
+      })
+      .catch(console.error)
+      .finally(() => setCargando(false))
+  }, [cliente.id])
 
   async function exportarPDF() {
     const doc = new jsPDF()
@@ -57,10 +38,10 @@ function ModalCuentaCliente({ cliente, onCerrar }) {
     doc.setFontSize(11)
     doc.setTextColor(0, 0, 0)
     doc.text(
-      saldoNeto > 0
-        ? `Saldo pendiente: $${saldoNeto.toLocaleString("es-AR")}`
-        : saldoNeto < 0
-          ? `Saldo a favor: $${Math.abs(saldoNeto).toLocaleString("es-AR")}`
+      saldoFinal > 0
+        ? `Saldo pendiente: $${saldoFinal.toLocaleString("es-AR")}`
+        : saldoFinal < 0
+          ? `Saldo a favor: $${Math.abs(saldoFinal).toLocaleString("es-AR")}`
           : "Al dia - sin deuda pendiente",
       14, 42
     )
@@ -107,18 +88,18 @@ function ModalCuentaCliente({ cliente, onCerrar }) {
 
         {/* Tarjeta saldo actual */}
         <div style={{
-          background: saldoNeto > 0 ? "#1f1a0a" : saldoNeto < 0 ? "#0a1a2a" : "#0a1f0a",
-          border: `0.5px solid ${saldoNeto > 0 ? TEMA.estados.reservado.border : saldoNeto < 0 ? "#1a4a8a" : "#1a5a1a"}`,
+          background: saldoFinal > 0 ? "#1f1a0a" : saldoFinal < 0 ? "#0a1a2a" : "#0a1f0a",
+          border: `0.5px solid ${saldoFinal > 0 ? TEMA.estados.reservado.border : saldoFinal < 0 ? "#1a4a8a" : "#1a5a1a"}`,
           borderRadius:"8px", padding:"10px 14px", marginBottom:"1.25rem"
         }}>
           <p style={{ fontSize:"11px", color: TEMA.textoTerciario, margin:"0 0 2px" }}>Saldo actual</p>
           <p style={{ fontSize:"16px", fontWeight:500, margin:"0 0 2px",
-            color: saldoNeto > 0 ? "#f0b429" : saldoNeto < 0 ? "#66aaff" : "#44cc44"
+            color: saldoFinal > 0 ? "#f0b429" : saldoFinal < 0 ? "#66aaff" : "#44cc44"
           }}>
-            {saldoNeto > 0 ? formatPeso(saldoNeto) : saldoNeto < 0 ? `-${formatPeso(Math.abs(saldoNeto))}` : "$0"}
+            {saldoFinal > 0 ? formatPeso(saldoFinal) : saldoFinal < 0 ? `-${formatPeso(Math.abs(saldoFinal))}` : "$0"}
           </p>
           <p style={{ fontSize:"11px", color: TEMA.textoTerciario, margin:0 }}>
-            {saldoNeto > 0 ? "Debe este monto" : saldoNeto < 0 ? "Tiene saldo a favor" : "Al día"}
+            {saldoFinal > 0 ? "Debe este monto" : saldoFinal < 0 ? "Tiene saldo a favor" : "Al día"}
           </p>
         </div>
 
@@ -131,7 +112,6 @@ function ModalCuentaCliente({ cliente, onCerrar }) {
           <p style={{ color: TEMA.textoTerciario, fontSize:"13px", textAlign:"center", padding:"1rem" }}>Sin movimientos</p>
         ) : (
           <div style={{ border:`0.5px solid ${TEMA.bordeSuave}`, borderRadius:"8px", overflow:"hidden" }}>
-            {/* Encabezado tabla */}
             <div style={{ display:"grid", gridTemplateColumns:"100px 1fr 90px 90px 90px", padding:"8px 12px", borderBottom:`0.5px solid ${TEMA.bordeSuave}`, fontSize:"11px", color: TEMA.textoTerciario, background: TEMA.superficie }}>
               <span>Fecha</span>
               <span>Descripción</span>
@@ -139,8 +119,6 @@ function ModalCuentaCliente({ cliente, onCerrar }) {
               <span style={{ textAlign:"right" }}>Haber</span>
               <span style={{ textAlign:"right" }}>Saldo</span>
             </div>
-
-            {/* Filas */}
             {movimientos.map((m, i) => (
               <div key={i}
                 style={{ display:"grid", gridTemplateColumns:"100px 1fr 90px 90px 90px", padding:"10px 12px",

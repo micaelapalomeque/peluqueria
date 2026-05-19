@@ -135,15 +135,12 @@ function FlujoPago({ turno, onCompletado, onError }) {
       if (saldoAFavor > 0) {
         await api.post("/pagos/", {
           turno_id:    turno.turno_id,
-          cliente_id:  turno.cliente_id,
+          cliente_id:  turno.cliente_id,  // ← corregido
           monto:       saldoAFavor,
           metodo_pago: metodo,
           tipo_pago:   "saldo_favor",
           estado_pago: "pagado",
           descripcion: `Saldo a favor turno #${turno.turno_id}`,
-        })
-        await api.patch(`/clientes/${turno.cliente_id}/saldo_favor`, {
-          monto: saldoAFavor
         })
       }
 
