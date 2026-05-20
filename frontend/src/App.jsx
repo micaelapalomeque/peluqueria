@@ -5,6 +5,7 @@ import Clientes from "./pages/Clientes"
 import Servicios from "./pages/Servicios"
 import CuentaCorriente from "./pages/CuentaCorriente"
 import Reportes from "./pages/Reportes"
+import Cobranzas from "./pages/Cobranzas"
 
 function App() {
   const [pagina, setPagina] = useState(
@@ -50,20 +51,21 @@ function App() {
           </div>
         )}
 
-        {pagina === "" || pagina === "/" ? <Turnos />          :
-         pagina === "clientes"           ? <Clientes />        :
-         pagina === "servicios"          ? <Servicios />       :
-         pagina === "cuenta"             ? <CuentaCorriente /> :
-         pagina === "reportes"           ? <Reportes />        :
-         (
-          <div style={{ padding:"2rem", color:"#888", fontSize:"14px" }}>
-            Pantalla en construcción...
-          </div>
-         )
+         {pagina === "" || pagina === "/" ? <Turnos />          :
+          pagina === "clientes"           ? <Clientes />        :
+          pagina === "servicios"          ? <Servicios />       :
+          pagina === "cuenta"             ? <CuentaCorriente /> :
+          pagina === "cobranzas"          ? <Cobranzas />       :
+          pagina === "reportes"           ? <Reportes />        :
+          <Turnos />
         }
+
       </div>
     </div>
   )
 }
 
 export default App
+
+
+

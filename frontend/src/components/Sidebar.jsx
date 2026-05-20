@@ -6,6 +6,7 @@ const links = [
   { nombre: "Clientes",         path: "clientes",  icono: "👤" },
   { nombre: "Servicios",        path: "servicios", icono: "✂️" },
   { nombre: "Cuenta corriente", path: "cuenta",    icono: "💰" },
+  {nombre: "Cobranzas",        path: "cobranzas",  icono: "💵" },
   { nombre: "Reportes",         path: "reportes",  icono: "📊" },
 ]
 
