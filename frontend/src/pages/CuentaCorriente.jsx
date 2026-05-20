@@ -63,7 +63,7 @@ function CuentaCorriente() {
         const fechaPago = new Date(p.fecha_pago)
         const hoy = new Date()
         return p.estado_pago === "pagado" &&
-          p.tipo_pago !== "saldo_favor" &&        // ← agregar
+          p.tipo_pago !== "saldo_favor" &&        
           fechaPago.getMonth()    === hoy.getMonth() &&
           fechaPago.getFullYear() === hoy.getFullYear()
       })

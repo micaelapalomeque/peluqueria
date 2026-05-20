@@ -107,62 +107,49 @@ function FlujoPago({ turno, onCompletado, onError }) {
   const saldoAFavor       = entregado !== null && entregado > montoFinal ? entregado - montoFinal : 0
 
   async function cobrarYCompletar() {
-    if (!metodo) return onError("Seleccioná un método de pago")
-    setCargando(true)
-    try {
-      if (hayDescuento) {
-        await api.patch(`/turnos/${turno.turno_id}/monto_cobrado`, { monto_cobrado: montoFinal })
-      }
+  if (!metodo) return onError("Seleccioná un método de pago")
+  setCargando(true)
+  try {
+    if (hayDescuento) {
+      await api.patch(`/turnos/${turno.turno_id}/monto_cobrado`, { monto_cobrado: montoFinal })
+    }
 
-      const { data: deudas } = await api.get(`/deudas/cliente/${turno.cliente_id}`)
-      const deuda = deudas.find(d =>
-        Number(d.turno_id) === Number(turno.turno_id) && d.estado !== "saldada"
-      )
+    const { data: deudas } = await api.get(`/deudas/cliente/${turno.cliente_id}`)
+    const deuda = deudas.find(d =>
+      Number(d.turno_id) === Number(turno.turno_id) && d.estado !== "saldada"
+    )
 
-      const montoPagar = entregado !== null ? Math.min(entregado, montoFinal) : montoFinal
+    const montoPagar = entregado !== null ? entregado : montoFinal
 
-      if (deuda) {
-        await api.post(`/deudas/${deuda.deuda_id}/pagar`, {
-          monto:       montoPagar,
-          metodo_pago: metodo,
-        })
-      }
+    if (deuda) {
+      await api.post(`/deudas/${deuda.deuda_id}/pagar`, {
+        monto:       montoPagar,
+        metodo_pago: metodo,
+      })
+    }
 
-      await new Promise(resolve => setTimeout(resolve, 300))
-      await api.patch(`/turnos/${turno.turno_id}/completar`)
+    await new Promise(resolve => setTimeout(resolve, 300))
+    await api.patch(`/turnos/${turno.turno_id}/completar`)
 
-      // Saldo a favor si entregó de más
-      if (saldoAFavor > 0) {
-        await api.post("/pagos/", {
-          turno_id:    turno.turno_id,
-          cliente_id:  turno.cliente_id,  // ← corregido
-          monto:       saldoAFavor,
-          metodo_pago: metodo,
-          tipo_pago:   "saldo_favor",
-          estado_pago: "pagado",
-          descripcion: `Saldo a favor turno #${turno.turno_id}`,
-        })
-      }
+    // Propina
+    if (propina && Number(propina) > 0) {
+      await api.post("/pagos/", {
+        turno_id:    turno.turno_id,
+        cliente_id:  turno.cliente_id,
+        monto:       Number(propina),
+        metodo_pago: metodo,
+        tipo_pago:   "propina",
+        estado_pago: "pagado",
+        descripcion: `Propina turno #${turno.turno_id}`,
+      })
+    }
 
-      // Propina
-      if (propina && Number(propina) > 0) {
-        await api.post("/pagos/", {
-          turno_id:    turno.turno_id,
-          cliente_id:  turno.cliente_id,
-          monto:       Number(propina),
-          metodo_pago: metodo,
-          tipo_pago:   "propina",
-          estado_pago: "pagado",
-          descripcion: `Propina turno #${turno.turno_id}`,
-        })
-      }
-
-      setPaso(3)
-      onCompletado()
-    } catch(e) {
-      onError(e.response?.data?.detail || "Error al cobrar")
-    } finally { setCargando(false) }
-  }
+    setPaso(3)
+    onCompletado()
+  } catch(e) {
+    onError(e.response?.data?.detail || "Error al cobrar")
+  } finally { setCargando(false) }
+}
 
   async function registrarDeuda() {
     setPaso(3)

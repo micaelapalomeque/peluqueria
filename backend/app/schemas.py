@@ -34,7 +34,7 @@ class ClienteResponse(BaseModel):
     activo:          bool
     fecha_alta:      datetime
     observacion:     Optional[str] = None
-    saldo_corriente: Decimal  # antes saldo_favor
+    saldo_corriente: Decimal  
 
     class Config:
         orm_mode = True
@@ -173,6 +173,7 @@ class DeudaPagoCreate(BaseModel):
     monto:       Decimal
     metodo_pago: MetodoPago
     observacion: Optional[str] = None
+    con_recargo : bool = False
 
     @validator("monto")
     def monto_positivo(cls, v):

@@ -54,7 +54,7 @@ class Turno(Base):
     __tablename__ = "turno"
     __table_args__ = (
         CheckConstraint(
-            "estado IN ('reservado', 'confirmado', 'asistido', 'completado', 'cancelado')",
+            "estado IN ('reservado', 'confirmado', 'asistido', 'completado', 'cancelado', 'ausente')",
             name="ck_turno_estado"
         ),
         CheckConstraint(

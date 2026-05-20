@@ -4,6 +4,7 @@ from decimal import Decimal
 from typing import Optional
 from datetime import timedelta
 from pydantic import BaseModel
+from sqlalchemy import func
 
 from app.database import get_db
 from app.models import Turno, Cliente, Servicio, Deuda, Pago
@@ -166,18 +167,17 @@ def crear_turno(turno_in: TurnoCreate, db: Session = Depends(get_db)):
     db.add(turno)
     db.flush()
 
-    # Actualizar saldo_corriente
-    cliente.saldo_corriente += turno.monto_total
-
     if monto_senia == 0:
         turno.estado       = "confirmado"
         turno.estado_senia = "exenta"
         _crear_deuda_si_corresponde(db, turno)
+        # Solo sumar saldo_corriente si se confirma directo
+        cliente.saldo_corriente += turno.monto_total
+    # Si tiene seña, el saldo_corriente se suma cuando se registra la seña
 
     db.commit()
     db.refresh(turno)
     return turno
-
 
 @router.patch("/{turno_id}/monto_cobrado", response_model=TurnoResponse)
 def actualizar_monto_cobrado(turno_id: int, datos: MontoCobradoUpdate, db: Session = Depends(get_db)):
@@ -192,15 +192,21 @@ def actualizar_monto_cobrado(turno_id: int, datos: MontoCobradoUpdate, db: Sessi
     cliente = _get_or_404(db, Cliente, Cliente.id, turno.cliente_id)
     cliente.saldo_corriente -= diferencia
 
+    # Actualizar la deuda si existe
+    deuda = db.query(Deuda).filter(Deuda.turno_id == turno_id).first()
+    if deuda and deuda.estado != "saldada":
+        deuda.monto_original  = datos.monto_cobrado
+        deuda.saldo_pendiente = datos.monto_cobrado - deuda.monto_pagado
+
     turno.monto_cobrado = datos.monto_cobrado
     db.commit()
     db.refresh(turno)
     return turno
 
-
 @router.patch("/{turno_id}/seniar", response_model=TurnoResponse)
 def seniar_turno(turno_id: int, metodo_pago: str, db: Session = Depends(get_db)):
-    turno = _get_or_404(db, Turno, Turno.turno_id, turno_id)
+    turno   = _get_or_404(db, Turno,   Turno.turno_id, turno_id)
+    cliente = _get_or_404(db, Cliente, Cliente.id,      turno.cliente_id)
 
     if turno.estado == "cancelado":
         raise HTTPException(status_code=400, detail="El turno está cancelado")
@@ -212,6 +218,7 @@ def seniar_turno(turno_id: int, metodo_pago: str, db: Session = Depends(get_db))
     if turno.monto_senia == 0:
         turno.estado_senia = "exenta"
         _crear_deuda_si_corresponde(db, turno)
+        cliente.saldo_corriente += turno.monto_total
     else:
         pago = Pago(
             turno_id    = turno.turno_id,
@@ -224,8 +231,8 @@ def seniar_turno(turno_id: int, metodo_pago: str, db: Session = Depends(get_db))
             descripcion = f"Seña turno #{turno.turno_id}",
         )
         db.add(pago)
-        # Actualizar saldo_corriente — la seña se crea directamente sin pasar por crear_pago
-        cliente = _get_or_404(db, Cliente, Cliente.id, turno.cliente_id)
+        # Sumar el total y restar la seña en un solo paso
+        cliente.saldo_corriente += turno.monto_total
         cliente.saldo_corriente -= turno.monto_senia
         turno.estado_senia = "abonada"
         _crear_deuda_si_corresponde(db, turno)
@@ -234,10 +241,10 @@ def seniar_turno(turno_id: int, metodo_pago: str, db: Session = Depends(get_db))
     db.refresh(turno)
     return turno
 
-
 @router.patch("/{turno_id}/confirmar_sin_senia", response_model=TurnoResponse)
 def confirmar_sin_senia(turno_id: int, db: Session = Depends(get_db)):
-    turno = _get_or_404(db, Turno, Turno.turno_id, turno_id)
+    turno   = _get_or_404(db, Turno,   Turno.turno_id, turno_id)
+    cliente = _get_or_404(db, Cliente, Cliente.id,      turno.cliente_id)
 
     if turno.estado == "cancelado":
         raise HTTPException(status_code=400, detail="El turno está cancelado")
@@ -248,12 +255,13 @@ def confirmar_sin_senia(turno_id: int, db: Session = Depends(get_db)):
     turno.estado       = "confirmado"
     turno.estado_senia = "exenta"
 
+    cliente.saldo_corriente += turno.monto_total  # ← agregar
+
     _crear_deuda_si_corresponde(db, turno)
 
     db.commit()
     db.refresh(turno)
     return turno
-
 
 @router.patch("/{turno_id}/asistido", response_model=TurnoResponse)
 def marcar_asistido(turno_id: int, db: Session = Depends(get_db)):
@@ -274,7 +282,8 @@ def completar_turno(turno_id: int, db: Session = Depends(get_db)):
 
     deuda = db.query(Deuda).filter(Deuda.turno_id == turno_id).first()
 
-    if deuda and deuda.estado != "saldada":
+    if deuda and deuda.estado not in ("saldada", "parcial"):
+        # Solo bloquear si la deuda está pendiente y no se pagó nada
         if turno.monto_cobrado is not None:
             deuda.saldo_pendiente = 0
             deuda.monto_pagado    = turno.monto_cobrado
@@ -291,7 +300,6 @@ def completar_turno(turno_id: int, db: Session = Depends(get_db)):
     db.refresh(turno)
     return turno
 
-
 @router.patch("/{turno_id}/cancelar", response_model=TurnoResponse)
 def cancelar_turno(turno_id: int, db: Session = Depends(get_db)):
     turno = _get_or_404(db, Turno, Turno.turno_id, turno_id)
@@ -304,7 +312,15 @@ def cancelar_turno(turno_id: int, db: Session = Depends(get_db)):
     turno.estado = "cancelado"
     # Revertir saldo_corriente
     cliente = _get_or_404(db, Cliente, Cliente.id, turno.cliente_id)
-    cliente.saldo_corriente -= turno.monto_total
+    
+    monto_ya_pagado = db.query(func.sum(Pago.monto)).filter(
+        Pago.turno_id    == turno.turno_id,
+        Pago.estado_pago == "pagado",
+        Pago.tipo_pago.notin_(["propina", "recargo"])
+    ).scalar() or Decimal("0")
+
+    saldo_a_revertir = turno.monto_total - monto_ya_pagado
+    cliente.saldo_corriente -= saldo_a_revertir
     db.commit()
     db.refresh(turno)
     return turno
@@ -320,9 +336,14 @@ def marcar_ausente(turno_id: int, db: Session = Depends(get_db)):
         deuda.estado      = "saldada"
         deuda.observacion = "Cancelada por ausencia del cliente"
     turno.estado = "ausente"
-    # Revertir saldo_corriente — el turno no se realizó
     cliente = _get_or_404(db, Cliente, Cliente.id, turno.cliente_id)
-    cliente.saldo_corriente -= turno.monto_total
-    db.commit()
+    monto_ya_pagado = db.query(func.sum(Pago.monto)).filter(
+        Pago.turno_id    == turno.turno_id,
+        Pago.estado_pago == "pagado",
+        Pago.tipo_pago.notin_(["propina", "recargo"])
+    ).scalar() or Decimal("0")
+    saldo_a_revertir = turno.monto_total - monto_ya_pagado
+    cliente.saldo_corriente -= saldo_a_revertir
+    db.commit()  # ← faltaba esto
     db.refresh(turno)
     return turno
