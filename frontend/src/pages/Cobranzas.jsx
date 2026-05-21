@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import api from "../api"
 import { TEMA } from "../theme"
 import Swal from "sweetalert2"
+
 
 function formatPeso(valor) {
   return `$${Number(valor).toLocaleString("es-AR")}`
@@ -30,6 +31,8 @@ function ModalNuevoCobro({ onCerrar, onCobrado }) {
   const [metodo,          setMetodo]          = useState("")
   const [procesando,      setProcesando]      = useState(false)
   const [error,           setError]           = useState(null)
+  const [indiceActivo,    setIndiceActivo]    = useState(-1)
+  const listaRef = useRef(null)
 
   useEffect(() => {
     Promise.all([
@@ -49,6 +52,7 @@ function ModalNuevoCobro({ onCerrar, onCobrado }) {
   function seleccionarCliente(cliente) {
     setClienteSelec(cliente)
     setBusqueda(cliente.nombre)
+    setIndiceActivo(-1)
     setTipoCobro(null)
     setDeudaSelec(null)
     setMontoCobro("")
@@ -62,13 +66,46 @@ function ModalNuevoCobro({ onCerrar, onCobrado }) {
       .finally(() => setCargando(false))
   }
 
-  const saldoCliente    = balances[clienteSelec?.id] ?? 0
-  const montoSugerido   = tipoCobro === "deuda" && deudaSelec
+  function handleKeyDown(e) {
+    const lista = clientesFiltrados
+    if (!busqueda || clienteSelec || lista.length === 0) return
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault()
+      const nuevoIndice = Math.min(indiceActivo + 1, lista.length - 1)
+      setIndiceActivo(nuevoIndice)
+      const listaEl = listaRef.current
+      if (listaEl) {
+        const item = listaEl.children[nuevoIndice]
+        if (item) item.scrollIntoView({ block:"nearest" })
+      }
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault()
+      const nuevoIndice = Math.max(indiceActivo - 1, 0)
+      setIndiceActivo(nuevoIndice)
+      const listaEl = listaRef.current
+      if (listaEl) {
+        const item = listaEl.children[nuevoIndice]
+        if (item) item.scrollIntoView({ block:"nearest" })
+      }
+    } else if (e.key === "Enter") {
+      e.preventDefault()
+      if (indiceActivo >= 0 && lista[indiceActivo]) {
+        seleccionarCliente(lista[indiceActivo])
+      }
+    } else if (e.key === "Escape") {
+      setBusqueda("")
+      setIndiceActivo(-1)
+    }
+  }
+
+  const saldoCliente      = balances[clienteSelec?.id] ?? 0
+  const montoSugerido     = tipoCobro === "deuda" && deudaSelec
     ? Number(deudaSelec.saldo_pendiente)
     : tipoCobro === "cuenta" ? Math.max(0, saldoCliente) : 0
-  const montoCobroNum      = montoCobro !== "" ? Number(montoCobro) : montoSugerido
-  const montoEntregadoNum  = montoEntregado !== "" ? Number(montoEntregado) : null
-  const coincide           = montoEntregadoNum !== null && montoEntregadoNum >= montoCobroNum
+  const montoCobroNum     = montoCobro !== "" ? Number(montoCobro) : montoSugerido
+  const montoEntregadoNum = montoEntregado !== "" ? Number(montoEntregado) : null
+  const coincide          = montoEntregadoNum !== null && montoEntregadoNum >= montoCobroNum
 
   async function registrarPago() {
     if (!metodo)        return setError("Seleccioná un método de pago")
@@ -120,18 +157,23 @@ function ModalNuevoCobro({ onCerrar, onCobrado }) {
         {/* Paso 1 — Cliente */}
         <div style={{ background: TEMA.superficie, border:`0.5px solid ${TEMA.borde}`, borderRadius:"8px", padding:"12px", marginBottom:"12px" }}>
           <p style={{ fontSize:"12px", fontWeight:500, color: TEMA.textoSecundario, margin:"0 0 8px" }}>1. Cliente</p>
-          <input value={busqueda}
-            onChange={e => { setBusqueda(e.target.value); setClienteSelec(null) }}
+          <input
+            value={busqueda}
+            onChange={e => { setBusqueda(e.target.value); setClienteSelec(null); setIndiceActivo(-1) }}
+            onKeyDown={handleKeyDown}
             placeholder="Buscá por nombre o celular..."
             style={{ width:"100%", padding:"8px 12px", background:"#2a2a2a", border:`0.5px solid ${TEMA.borde}`, borderRadius:"6px", color: TEMA.textoPrimario, fontSize:"13px", boxSizing:"border-box", marginBottom:"6px" }}
           />
           {busqueda && !clienteSelec && clientesFiltrados.length > 0 && (
-            <div style={{ border:`0.5px solid ${TEMA.bordeSuave}`, borderRadius:"6px", overflow:"hidden", maxHeight:"160px", overflowY:"auto" }}>
-              {clientesFiltrados.map(c => (
+            <div ref={listaRef}
+              style={{ border:`0.5px solid ${TEMA.bordeSuave}`, borderRadius:"6px", overflow:"hidden", maxHeight:"160px", overflowY:"auto" }}>
+              {clientesFiltrados.map((c, i) => (
                 <div key={c.id} onClick={() => seleccionarCliente(c)}
-                  style={{ padding:"8px 12px", cursor:"pointer", display:"flex", justifyContent:"space-between", borderBottom:`0.5px solid ${TEMA.bordeSuave}` }}
-                  onMouseEnter={e => e.currentTarget.style.background = TEMA.superficie}
-                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                  style={{ padding:"8px 12px", cursor:"pointer", display:"flex", justifyContent:"space-between", borderBottom:`0.5px solid ${TEMA.bordeSuave}`,
+                    background: i === indiceActivo ? TEMA.primarioBg : "transparent"
+                  }}
+                  onMouseEnter={() => setIndiceActivo(i)}
+                  onMouseLeave={() => setIndiceActivo(-1)}>
                   <div>
                     <p style={{ fontSize:"13px", fontWeight:500, color: TEMA.textoPrimario, margin:0 }}>{c.nombre}</p>
                     <p style={{ fontSize:"11px", color: TEMA.textoTerciario, margin:0 }}>{c.celular}</p>
@@ -163,13 +205,13 @@ function ModalNuevoCobro({ onCerrar, onCobrado }) {
                   border:     tipoCobro === "deuda" ? `0.5px solid ${TEMA.primario}` : `0.5px solid ${TEMA.borde}`,
                   background: tipoCobro === "deuda" ? TEMA.primarioBg : "#2a2a2a",
                   color:      tipoCobro === "deuda" ? TEMA.primarioHover : TEMA.textoSecundario,
-                }}>📋 Deuda de turno</button>
+                }}> Deuda de turno</button>
               <button onClick={() => { setTipoCobro("cuenta"); setDeudaSelec(null); setMontoCobro(""); setMontoEntregado("") }}
                 style={{ flex:1, padding:"8px", borderRadius:"6px", fontSize:"12px", cursor:"pointer",
                   border:     tipoCobro === "cuenta" ? `0.5px solid ${TEMA.primario}` : `0.5px solid ${TEMA.borde}`,
                   background: tipoCobro === "cuenta" ? TEMA.primarioBg : "#2a2a2a",
                   color:      tipoCobro === "cuenta" ? TEMA.primarioHover : TEMA.textoSecundario,
-                }}>💰 Abono a cuenta</button>
+                }}> Abono a cuenta</button>
             </div>
 
             {tipoCobro === "deuda" && (
@@ -181,7 +223,6 @@ function ModalNuevoCobro({ onCerrar, onCobrado }) {
                     style={{ padding:"8px 12px", cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center",
                       borderBottom: i < deudas.length - 1 ? `0.5px solid ${TEMA.bordeSuave}` : "none",
                       background: deudaSelec?.deuda_id === d.deuda_id ? TEMA.primarioBg : "transparent",
-                      outline: deudaSelec?.deuda_id === d.deuda_id ? `0.5px solid ${TEMA.primario}` : "none",
                     }}>
                     <div>
                       <p style={{ fontSize:"12px", fontWeight:500, color: TEMA.textoPrimario, margin:0 }}>Turno #{d.turno_id}</p>
@@ -245,12 +286,10 @@ function ModalNuevoCobro({ onCerrar, onCobrado }) {
             </button>
           </div>
         )}
-
       </div>
     </div>
   )
 }
-
 // ─── Página Cobranzas ────────────────────────────────────────────────────────
 function Cobranzas() {
   const hoy            = new Date()

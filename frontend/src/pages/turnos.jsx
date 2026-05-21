@@ -42,10 +42,12 @@ function generarDias(offset = 0) {
 }
 
 function Buscador({ label, placeholder, items, onSeleccionar, campoSecundario, textoSecundario }) {
-  const [query, setQuery]               = useState("")
-  const [abierto, setAbierto]           = useState(false)
-  const [seleccionado, setSeleccionado] = useState(null)
-  const ref = useRef(null)
+  const [query,          setQuery]          = useState("")
+  const [abierto,        setAbierto]        = useState(false)
+  const [seleccionado,   setSeleccionado]   = useState(null)
+  const [indiceActivo,   setIndiceActivo]   = useState(-1)
+  const ref      = useRef(null)
+  const listaRef = useRef(null)
 
   useEffect(() => {
     function handler(e) {
@@ -64,13 +66,48 @@ function Buscador({ label, placeholder, items, onSeleccionar, campoSecundario, t
     setSeleccionado(item)
     setAbierto(false)
     setQuery("")
+    setIndiceActivo(-1)
     onSeleccionar(item)
   }
 
   function limpiar() {
     setSeleccionado(null)
     setQuery("")
+    setIndiceActivo(-1)
     onSeleccionar(null)
+  }
+
+  function handleKeyDown(e) {
+    if (!abierto || filtrados.length === 0) return
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault()
+      const nuevoIndice = Math.min(indiceActivo + 1, filtrados.length - 1)
+      setIndiceActivo(nuevoIndice)
+      // Scroll automático
+      const lista = listaRef.current
+      if (lista) {
+        const item = lista.children[nuevoIndice]
+        if (item) item.scrollIntoView({ block: "nearest" })
+      }
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault()
+      const nuevoIndice = Math.max(indiceActivo - 1, 0)
+      setIndiceActivo(nuevoIndice)
+      const lista = listaRef.current
+      if (lista) {
+        const item = lista.children[nuevoIndice]
+        if (item) item.scrollIntoView({ block: "nearest" })
+      }
+    } else if (e.key === "Enter") {
+      e.preventDefault()
+      if (indiceActivo >= 0 && filtrados[indiceActivo]) {
+        elegir(filtrados[indiceActivo])
+      }
+    } else if (e.key === "Escape") {
+      setAbierto(false)
+      setIndiceActivo(-1)
+    }
   }
 
   return (
@@ -91,22 +128,26 @@ function Buscador({ label, placeholder, items, onSeleccionar, campoSecundario, t
           <span style={{ position:"absolute", left:"10px", top:"50%", transform:"translateY(-50%)", color:"#555", fontSize:"13px", pointerEvents:"none" }}>🔍</span>
           <input
             value={query}
-            onChange={e => { setQuery(e.target.value); setAbierto(true) }}
+            onChange={e => { setQuery(e.target.value); setAbierto(true); setIndiceActivo(-1) }}
             onFocus={() => setAbierto(true)}
+            onKeyDown={handleKeyDown}
             placeholder={placeholder}
             style={{ width:"100%", padding:"8px 10px 8px 30px", background:"#2a2a2a", border:"0.5px solid #444", borderRadius:"6px", color:"#f0f0f0", fontSize:"13px", boxSizing:"border-box" }}
           />
           {abierto && (
-            <div style={{ position:"absolute", top:"calc(100% + 4px)", left:0, right:0, background:"#2a2a2a", border:"0.5px solid #444", borderRadius:"6px", zIndex:10, maxHeight:"160px", overflowY:"auto" }}>
+            <div ref={listaRef}
+              style={{ position:"absolute", top:"calc(100% + 4px)", left:0, right:0, background:"#2a2a2a", border:"0.5px solid #444", borderRadius:"6px", zIndex:10, maxHeight:"160px", overflowY:"auto" }}>
               {filtrados.length === 0 ? (
                 <div style={{ padding:"10px 12px", fontSize:"12px", color:"#555" }}>Sin resultados</div>
-              ) : filtrados.map(item => (
+              ) : filtrados.map((item, i) => (
                 <div
                   key={item.id}
                   onClick={() => elegir(item)}
-                  style={{ padding:"8px 12px", fontSize:"13px", cursor:"pointer", borderBottom:"0.5px solid #333" }}
-                  onMouseEnter={e => e.currentTarget.style.background = "#3a0a0a"}
-                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                  style={{ padding:"8px 12px", fontSize:"13px", cursor:"pointer", borderBottom:"0.5px solid #333",
+                    background: i === indiceActivo ? "#3a0a0a" : "transparent"
+                  }}
+                  onMouseEnter={() => setIndiceActivo(i)}
+                  onMouseLeave={() => setIndiceActivo(-1)}
                 >
                   <div style={{ fontWeight:500, color:"#f0f0f0" }}>{item.nombre}</div>
                   {campoSecundario && (
