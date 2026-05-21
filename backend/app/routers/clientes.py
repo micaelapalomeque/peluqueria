@@ -184,16 +184,20 @@ def balance_cliente(cliente_id: int, db: Session = Depends(get_db)):
     ]
 
     pagos = (
-        db.query(models.Pago)
-        .filter(
-            models.Pago.cliente_id  == cliente_id,
-            models.Pago.estado_pago == "pagado",
-            models.Pago.tipo_pago.notin_(["propina", "recargo", "saldo_favor"]),  # ← agregar saldo_favor
-            ~models.Pago.turno_id.in_(turnos_ausentes_ids) if turnos_ausentes_ids else True
-        )
-        .order_by(models.Pago.fecha_pago)
-        .all()
+    db.query(models.Pago)
+    .filter(
+        models.Pago.cliente_id  == cliente_id,
+        models.Pago.estado_pago == "pagado",
+        models.Pago.tipo_pago.notin_(["propina", "recargo", "saldo_favor"]),
+        # Incluir pagos sin turno (abonos a cuenta) Y pagos de turnos no ausentes
+        db.query(models.Turno).filter(
+            models.Turno.turno_id == models.Pago.turno_id,
+            models.Turno.estado   == "ausente"
+        ).exists().__invert__()
     )
+    .order_by(models.Pago.fecha_pago)
+    .all()
+)
 
     movimientos = []
 
@@ -209,10 +213,15 @@ def balance_cliente(cliente_id: int, db: Session = Depends(get_db)):
         })
 
     for pago in pagos:
+        if pago.turno_id is None:
+            descripcion = f"Abono a cuenta · {pago.metodo_pago}"
+        else:
+            descripcion = f"Pago {pago.metodo_pago} · {pago.tipo_pago}"
+        
         movimientos.append({
             "fechaRaw":    pago.fecha_pago.isoformat(),
             "fecha":       pago.fecha_pago.strftime("%d/%m/%Y"),
-            "descripcion": f"Pago {pago.metodo_pago} · {pago.tipo_pago}",
+            "descripcion": descripcion,
             "tipo":        "haber",
             "debe":        0,
             "haber":       float(pago.monto),

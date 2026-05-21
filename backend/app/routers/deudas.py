@@ -106,7 +106,7 @@ def pagar_deuda(deuda_id: int, pago_in: DeudaPagoCreate, db: Session = Depends(g
     else:
         deuda.estado = "parcial"
 
-    # Pago principal
+    # Pago principal — actualiza saldo_corriente
     pago_principal = Pago(
         turno_id    = deuda.turno_id,
         cliente_id  = deuda.cliente_id,
@@ -119,33 +119,23 @@ def pagar_deuda(deuda_id: int, pago_in: DeudaPagoCreate, db: Session = Depends(g
     db.add(pago_principal)
     cliente.saldo_corriente -= monto_a_pagar
 
-    # Excedente — puede ser saldo_favor o recargo
-    
+    # Excedente — solo registro contable, NO toca saldo_corriente
     if monto_excedente > 0:
-        if pago_in.con_recargo:
-            # Es un recargo por mora — no reduce saldo_corriente futuro
-            tipo = "recargo"
-            actualizar_saldo = False
-        else:
-            # Es un excedente real — queda a favor del cliente
-            tipo = "saldo_favor"
-            actualizar_saldo = True
-
         pago_excedente = Pago(
             turno_id    = deuda.turno_id,
             cliente_id  = deuda.cliente_id,
             monto       = monto_excedente,
             metodo_pago = pago_in.metodo_pago,
-            tipo_pago   = tipo,
+            tipo_pago   = "recargo" if pago_in.con_recargo else "saldo_favor",
             estado_pago = "pagado",
             observacion = "Recargo por mora" if pago_in.con_recargo else "Saldo a favor por excedente",
         )
         db.add(pago_excedente)
-        if actualizar_saldo:
-            cliente.saldo_corriente -= monto_excedente
+
     db.commit()
     db.refresh(deuda)
     return deuda
+
 
 @router.get("/{deuda_id}", response_model=DeudaResponse)
 def obtener_deuda(deuda_id: int, db: Session = Depends(get_db)):
