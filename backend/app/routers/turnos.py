@@ -94,7 +94,7 @@ def reporte_dias_semana(mes: int = None, anio: int = None, db: Session = Depends
             extract("dow", Turno.fecha_hora_inicio).label("dia"),
             func.count(Turno.turno_id).label("total")
         )
-        .filter(Turno.estado.notin_(["cancelado"]))
+        .filter(Turno.estado.notin_(["cancelado", "ausente"]))
         .group_by(extract("dow", Turno.fecha_hora_inicio))
         .order_by(extract("dow", Turno.fecha_hora_inicio))
     )
@@ -115,7 +115,7 @@ def reporte_hora_pico(mes: int = None, anio: int = None, db: Session = Depends(g
             extract("hour", Turno.fecha_hora_inicio).label("hora"),
             func.count(Turno.turno_id).label("total")
         )
-        .filter(Turno.estado.notin_(["cancelado"]))
+        .filter(Turno.estado.notin_(["cancelado", "ausente"]))
         .group_by(extract("hour", Turno.fecha_hora_inicio))
         .order_by(extract("hour", Turno.fecha_hora_inicio))
     )

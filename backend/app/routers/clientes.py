@@ -188,7 +188,7 @@ def balance_cliente(cliente_id: int, db: Session = Depends(get_db)):
     .filter(
         models.Pago.cliente_id  == cliente_id,
         models.Pago.estado_pago == "pagado",
-        models.Pago.tipo_pago.notin_(["propina", "recargo", "saldo_favor"]),
+        models.Pago.tipo_pago.notin_(["propina", "recargo"]),
         # Incluir pagos sin turno (abonos a cuenta) Y pagos de turnos no ausentes
         db.query(models.Turno).filter(
             models.Turno.turno_id == models.Pago.turno_id,

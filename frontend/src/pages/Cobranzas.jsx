@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react"
 import api from "../api"
 import { TEMA } from "../theme"
 import Swal from "sweetalert2"
-
+import BtnExportar from "../components/BtnExportar"
 
 function formatPeso(valor) {
   return `$${Number(valor).toLocaleString("es-AR")}`
@@ -13,25 +13,25 @@ function formatFecha(fecha) {
   return new Date(fecha).toLocaleDateString("es-AR", { day:"numeric", month:"short", year:"numeric" })
 }
 
-const METODOS_PAGO    = ["efectivo", "transferencia"]
-const PAGOS_POR_PAG   = 20
+const METODOS_PAGO  = ["efectivo", "transferencia"]
+const PAGOS_POR_PAG = 20
 
 // ─── Modal Nuevo Cobro ───────────────────────────────────────────────────────
 function ModalNuevoCobro({ onCerrar, onCobrado }) {
-  const [clientes,        setClientes]        = useState([])
-  const [balances,        setBalances]        = useState({})
-  const [busqueda,        setBusqueda]        = useState("")
-  const [clienteSelec,    setClienteSelec]    = useState(null)
-  const [deudas,          setDeudas]          = useState([])
-  const [cargando,        setCargando]        = useState(false)
-  const [tipoCobro,       setTipoCobro]       = useState(null)
-  const [deudaSelec,      setDeudaSelec]      = useState(null)
-  const [montoCobro,      setMontoCobro]      = useState("")
-  const [montoEntregado,  setMontoEntregado]  = useState("")
-  const [metodo,          setMetodo]          = useState("")
-  const [procesando,      setProcesando]      = useState(false)
-  const [error,           setError]           = useState(null)
-  const [indiceActivo,    setIndiceActivo]    = useState(-1)
+  const [clientes,       setClientes]       = useState([])
+  const [balances,       setBalances]       = useState({})
+  const [busqueda,       setBusqueda]       = useState("")
+  const [clienteSelec,   setClienteSelec]   = useState(null)
+  const [deudas,         setDeudas]         = useState([])
+  const [cargando,       setCargando]       = useState(false)
+  const [tipoCobro,      setTipoCobro]      = useState(null)
+  const [deudaSelec,     setDeudaSelec]     = useState(null)
+  const [montoCobro,     setMontoCobro]     = useState("")
+  const [montoEntregado, setMontoEntregado] = useState("")
+  const [metodo,         setMetodo]         = useState("")
+  const [procesando,     setProcesando]     = useState(false)
+  const [error,          setError]          = useState(null)
+  const [indiceActivo,   setIndiceActivo]   = useState(-1)
   const listaRef = useRef(null)
 
   useEffect(() => {
@@ -69,30 +69,21 @@ function ModalNuevoCobro({ onCerrar, onCobrado }) {
   function handleKeyDown(e) {
     const lista = clientesFiltrados
     if (!busqueda || clienteSelec || lista.length === 0) return
-
     if (e.key === "ArrowDown") {
       e.preventDefault()
       const nuevoIndice = Math.min(indiceActivo + 1, lista.length - 1)
       setIndiceActivo(nuevoIndice)
       const listaEl = listaRef.current
-      if (listaEl) {
-        const item = listaEl.children[nuevoIndice]
-        if (item) item.scrollIntoView({ block:"nearest" })
-      }
+      if (listaEl) listaEl.children[nuevoIndice]?.scrollIntoView({ block:"nearest" })
     } else if (e.key === "ArrowUp") {
       e.preventDefault()
       const nuevoIndice = Math.max(indiceActivo - 1, 0)
       setIndiceActivo(nuevoIndice)
       const listaEl = listaRef.current
-      if (listaEl) {
-        const item = listaEl.children[nuevoIndice]
-        if (item) item.scrollIntoView({ block:"nearest" })
-      }
+      if (listaEl) listaEl.children[nuevoIndice]?.scrollIntoView({ block:"nearest" })
     } else if (e.key === "Enter") {
       e.preventDefault()
-      if (indiceActivo >= 0 && lista[indiceActivo]) {
-        seleccionarCliente(lista[indiceActivo])
-      }
+      if (indiceActivo >= 0 && lista[indiceActivo]) seleccionarCliente(lista[indiceActivo])
     } else if (e.key === "Escape") {
       setBusqueda("")
       setIndiceActivo(-1)
@@ -157,8 +148,7 @@ function ModalNuevoCobro({ onCerrar, onCobrado }) {
         {/* Paso 1 — Cliente */}
         <div style={{ background: TEMA.superficie, border:`0.5px solid ${TEMA.borde}`, borderRadius:"8px", padding:"12px", marginBottom:"12px" }}>
           <p style={{ fontSize:"12px", fontWeight:500, color: TEMA.textoSecundario, margin:"0 0 8px" }}>1. Cliente</p>
-          <input
-            value={busqueda}
+          <input value={busqueda}
             onChange={e => { setBusqueda(e.target.value); setClienteSelec(null); setIndiceActivo(-1) }}
             onKeyDown={handleKeyDown}
             placeholder="Buscá por nombre o celular..."
@@ -205,15 +195,14 @@ function ModalNuevoCobro({ onCerrar, onCobrado }) {
                   border:     tipoCobro === "deuda" ? `0.5px solid ${TEMA.primario}` : `0.5px solid ${TEMA.borde}`,
                   background: tipoCobro === "deuda" ? TEMA.primarioBg : "#2a2a2a",
                   color:      tipoCobro === "deuda" ? TEMA.primarioHover : TEMA.textoSecundario,
-                }}> Deuda de turno</button>
+                }}>📋 Deuda de turno</button>
               <button onClick={() => { setTipoCobro("cuenta"); setDeudaSelec(null); setMontoCobro(""); setMontoEntregado("") }}
                 style={{ flex:1, padding:"8px", borderRadius:"6px", fontSize:"12px", cursor:"pointer",
                   border:     tipoCobro === "cuenta" ? `0.5px solid ${TEMA.primario}` : `0.5px solid ${TEMA.borde}`,
                   background: tipoCobro === "cuenta" ? TEMA.primarioBg : "#2a2a2a",
                   color:      tipoCobro === "cuenta" ? TEMA.primarioHover : TEMA.textoSecundario,
-                }}> Abono a cuenta</button>
+                }}>💰 Abono a cuenta</button>
             </div>
-
             {tipoCobro === "deuda" && (
               cargando ? <p style={{ fontSize:"12px", color: TEMA.textoSecundario }}>Cargando...</p> :
               deudas.length === 0 ? <p style={{ fontSize:"12px", color: TEMA.textoTerciario, textAlign:"center", padding:"8px" }}>Sin deudas pendientes</p> :
@@ -240,14 +229,12 @@ function ModalNuevoCobro({ onCerrar, onCobrado }) {
         {clienteSelec && tipoCobro && (tipoCobro === "cuenta" || deudaSelec) && (
           <div style={{ background: TEMA.superficie, border:`0.5px solid ${TEMA.borde}`, borderRadius:"8px", padding:"12px", marginBottom:"12px" }}>
             <p style={{ fontSize:"12px", fontWeight:500, color: TEMA.textoSecundario, margin:"0 0 10px" }}>3. Monto y método</p>
-
             <div style={{ marginBottom:"10px" }}>
               <label style={{ fontSize:"11px", color: TEMA.textoTerciario, display:"block", marginBottom:"4px" }}>Monto a cobrar</label>
               <input value={montoCobro} onChange={e => setMontoCobro(e.target.value.replace(/\D/g, ""))}
                 placeholder={formatPeso(montoSugerido)} inputMode="numeric"
                 style={{ width:"100%", padding:"8px 12px", background:"#2a2a2a", border:`0.5px solid ${TEMA.borde}`, borderRadius:"6px", color: TEMA.textoPrimario, fontSize:"13px", boxSizing:"border-box" }} />
             </div>
-
             <div style={{ marginBottom:"10px" }}>
               <label style={{ fontSize:"11px", color: TEMA.textoTerciario, display:"block", marginBottom:"4px" }}>Monto entregado</label>
               <input value={montoEntregado} onChange={e => setMontoEntregado(e.target.value.replace(/\D/g, ""))}
@@ -261,7 +248,6 @@ function ModalNuevoCobro({ onCerrar, onCobrado }) {
                 </p>
               )}
             </div>
-
             <div style={{ marginBottom:"10px" }}>
               <label style={{ fontSize:"11px", color: TEMA.textoTerciario, display:"block", marginBottom:"4px" }}>Método de pago</label>
               <div style={{ display:"flex", gap:"8px" }}>
@@ -275,9 +261,7 @@ function ModalNuevoCobro({ onCerrar, onCobrado }) {
                 ))}
               </div>
             </div>
-
             {error && <p style={{ fontSize:"12px", color: TEMA.primarioHover, margin:"0 0 10px" }}>{error}</p>}
-
             <button onClick={registrarPago} disabled={procesando || !coincide || !metodo}
               style={{ width:"100%", padding:"10px", borderRadius:"6px", background: TEMA.primario, border:"none", color:"white", fontSize:"13px", fontWeight:500,
                 cursor: procesando || !coincide || !metodo ? "not-allowed" : "pointer",
@@ -286,24 +270,26 @@ function ModalNuevoCobro({ onCerrar, onCobrado }) {
             </button>
           </div>
         )}
+
       </div>
     </div>
   )
 }
+
 // ─── Página Cobranzas ────────────────────────────────────────────────────────
 function Cobranzas() {
-  const hoy            = new Date()
-  const inicioMes      = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().split("T")[0]
-  const finMes         = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().split("T")[0]
+  const hoy       = new Date()
+  const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().split("T")[0]
+  const finMes    = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().split("T")[0]
 
-  const [pagos,         setPagos]         = useState([])
-  const [clientes,      setClientes]      = useState([])
-  const [cargando,      setCargando]      = useState(true)
-  const [modalNuevo,    setModalNuevo]    = useState(false)
-  const [pagina,        setPagina]        = useState(1)
-  const [busqueda,      setBusqueda]      = useState("")
-  const [fechaDesde,    setFechaDesde]    = useState(inicioMes)
-  const [fechaHasta,    setFechaHasta]    = useState(finMes)
+  const [pagos,      setPagos]      = useState([])
+  const [clientes,   setClientes]   = useState([])
+  const [cargando,   setCargando]   = useState(true)
+  const [modalNuevo, setModalNuevo] = useState(false)
+  const [pagina,     setPagina]     = useState(1)
+  const [busqueda,   setBusqueda]   = useState("")
+  const [fechaDesde, setFechaDesde] = useState(inicioMes)
+  const [fechaHasta, setFechaHasta] = useState(finMes)
 
   function cargarPagos() {
     setCargando(true)
@@ -332,9 +318,9 @@ function Cobranzas() {
     return enRango && enBusqueda
   })
 
-  const totalPaginas  = Math.ceil(pagosFiltrados.length / PAGOS_POR_PAG)
-  const pagosPagina   = pagosFiltrados.slice((pagina - 1) * PAGOS_POR_PAG, pagina * PAGOS_POR_PAG)
-  const totalPeriodo  = pagosFiltrados.filter(p => p.tipo_pago !== "saldo_favor").reduce((acc, p) => acc + Number(p.monto), 0)
+  const totalPaginas = Math.ceil(pagosFiltrados.length / PAGOS_POR_PAG)
+  const pagosPagina  = pagosFiltrados.slice((pagina - 1) * PAGOS_POR_PAG, pagina * PAGOS_POR_PAG)
+  const totalPeriodo = pagosFiltrados.reduce((acc, p) => acc + Number(p.monto), 0)
 
   return (
     <div style={{ flex:1, padding:"1.5rem", background: TEMA.fondo, overflowY:"auto" }}>
@@ -345,10 +331,25 @@ function Cobranzas() {
           <p style={{ fontSize:"16px", fontWeight:500, color: TEMA.textoPrimario, margin:0 }}>Cobranzas</p>
           <p style={{ fontSize:"12px", color: TEMA.textoSecundario, margin:"2px 0 0" }}>Historial de cobros</p>
         </div>
-        <button onClick={() => setModalNuevo(true)}
-          style={{ padding:"8px 16px", borderRadius:"6px", background: TEMA.primario, border:"none", color:"white", fontSize:"13px", fontWeight:500, cursor:"pointer" }}>
-          + Nuevo cobro
-        </button>
+        <div style={{ display:"flex", gap:"8px" }}>
+          <BtnExportar
+            nombreArchivo="cobranzas"
+            titulo="Historial de Cobros"
+            columnas={["N°", "Cliente", "Fecha", "Turno", "Tipo", "Monto"]}
+            filas={pagosFiltrados.map(p => [
+              `#${p.pago_id}`,
+              nombreCliente(p.cliente_id),
+              formatFecha(p.fecha_pago),
+              p.turno_id ? `#${p.turno_id}` : "—",
+              p.tipo_pago,
+              `$${Number(p.monto).toLocaleString("es-AR")}`,
+            ])}
+          />
+          <button onClick={() => setModalNuevo(true)}
+            style={{ padding:"8px 16px", borderRadius:"6px", background: TEMA.primario, border:"none", color:"white", fontSize:"13px", fontWeight:500, cursor:"pointer" }}>
+            + Nuevo cobro
+          </button>
+        </div>
       </div>
 
       {/* Tarjeta total */}
@@ -393,9 +394,7 @@ function Cobranzas() {
               <span style={{ fontSize:"11px", color: TEMA.textoTerciario }}>#{pago.pago_id}</span>
               <span style={{ fontSize:"13px", color: TEMA.textoPrimario, fontWeight:500 }}>{nombreCliente(pago.cliente_id)}</span>
               <span style={{ fontSize:"12px", color: TEMA.textoSecundario }}>{formatFecha(pago.fecha_pago)}</span>
-              <span style={{ fontSize:"12px", color: TEMA.textoTerciario }}>
-                {pago.turno_id ? `#${pago.turno_id}` : "—"}
-              </span>
+              <span style={{ fontSize:"12px", color: TEMA.textoTerciario }}>{pago.turno_id ? `#${pago.turno_id}` : "—"}</span>
               <span style={{ fontSize:"11px", textAlign:"center", padding:"2px 6px", borderRadius:"20px", textTransform:"capitalize",
                 background: pago.tipo_pago === "propina" ? "#1a2a1a" : pago.tipo_pago === "saldo_favor" ? "#0a1a2a" : TEMA.superficie,
                 color: pago.tipo_pago === "propina" ? "#44cc44" : pago.tipo_pago === "saldo_favor" ? "#66aaff" : TEMA.textoSecundario,

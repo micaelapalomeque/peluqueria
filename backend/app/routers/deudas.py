@@ -131,6 +131,7 @@ def pagar_deuda(deuda_id: int, pago_in: DeudaPagoCreate, db: Session = Depends(g
             observacion = "Recargo por mora" if pago_in.con_recargo else "Saldo a favor por excedente",
         )
         db.add(pago_excedente)
+        cliente.saldo_corriente -= monto_excedente
 
     db.commit()
     db.refresh(deuda)

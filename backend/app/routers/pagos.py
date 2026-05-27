@@ -54,7 +54,6 @@ def reporte_mes_actual(db: Session = Depends(get_db)):
         Pago.estado_pago == "pagado",
         Pago.fecha_pago  >= inicio,
         Pago.fecha_pago  <= hoy,
-        Pago.tipo_pago.notin_(["saldo_favor"]),
     ).scalar() or 0
 
     # Usar saldo_corriente directamente — mucho más simple
@@ -102,7 +101,6 @@ def ingresos_por_mes(meses: int = 1, db: Session = Depends(get_db)):
         )
         .filter(Pago.estado_pago == "pagado")
         .filter(Pago.fecha_pago >= inicio)
-        .filter(Pago.tipo_pago.notin_(["saldo_favor"]))
         .group_by(
             func.extract("year",  Pago.fecha_pago),
             func.extract("month", Pago.fecha_pago)
@@ -147,7 +145,6 @@ def ingresos_por_semana(fecha_inicio: str, db: Session = Depends(get_db)):
         .filter(Pago.estado_pago == "pagado")
         .filter(Pago.fecha_pago >= inicio)
         .filter(Pago.fecha_pago <= fin.replace(hour=23, minute=59, second=59))
-        .filter(Pago.tipo_pago.notin_(["saldo_favor"]))
         .group_by(func.date(Pago.fecha_pago))
         .all()
     )
@@ -183,7 +180,6 @@ def reporte_metodos_pago(mes: int, anio: int, db: Session = Depends(get_db)):
         .filter(Pago.estado_pago == "pagado")
         .filter(Pago.fecha_pago >= inicio)
         .filter(Pago.fecha_pago < fin)
-        .filter(Pago.tipo_pago.notin_(["saldo_favor", "propina", "recargo"]))  # ← agregar
         .group_by(Pago.metodo_pago)
         .all()
     )
