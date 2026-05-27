@@ -11,7 +11,7 @@ from sqlalchemy import func
 router = APIRouter(prefix="/pagos", tags=["Pagos"])
 
 
-# ── helpers ───────────────────────────────────────────────────────────────────
+#helpers
 
 def _get_or_404(db: Session, model, id_field, id_value):
     obj = db.query(model).filter(id_field == id_value).first()
@@ -35,14 +35,14 @@ def _actualizar_deuda(db: Session, turno_id: int, monto_pagado: Decimal) -> Opti
 
 
 
-# ── endpoints ─────────────────────────────────────────────────────────────────
+#endpoints
 
 @router.get("/", response_model=list[PagoResponse])
 def listar_pagos(db: Session = Depends(get_db)):
     return db.query(Pago).all()
 
 
-# ── REPORTES ───────────────────────────────────
+#REPORTES 
 
 @router.get("/reporte/mes-actual")
 def reporte_mes_actual(db: Session = Depends(get_db)):
@@ -56,7 +56,7 @@ def reporte_mes_actual(db: Session = Depends(get_db)):
         Pago.fecha_pago  <= hoy,
     ).scalar() or 0
 
-    # Usar saldo_corriente directamente — mucho más simple
+    # Usar saldo_corriente
     adeudado = db.query(func.sum(Cliente.saldo_corriente)).filter(
         Cliente.activo         == True,
         Cliente.saldo_corriente > 0
@@ -186,7 +186,7 @@ def reporte_metodos_pago(mes: int, anio: int, db: Session = Depends(get_db)):
 
     return [{"metodo": p.metodo_pago, "total": float(p.total)} for p in pagos]
 
-# ── CRUD por ID (deben ir después de las rutas fijas) ─────────────────────────
+#CRUD por ID
 
 @router.get("/{pago_id}", response_model=PagoResponse)
 def obtener_pago(pago_id: int, db: Session = Depends(get_db)):

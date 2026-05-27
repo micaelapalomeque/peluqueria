@@ -5,7 +5,7 @@ from decimal import Decimal
 
 
 
-# ── ENUMS como Literal ────────────────────────────────────────────────────────
+#ENUMS como Literal
 
 MetodoPago  = Literal['efectivo', 'transferencia', 'mp', 'debito', 'credito']
 EstadoPago  = Literal['pendiente', 'pagado', 'cancelado']
@@ -13,7 +13,7 @@ EstadoDeuda = Literal['pendiente', 'parcial', 'saldada']
 TipoPago = Literal['senia', 'parcial', 'total', 'saldo_favor', 'recargo', 'propina']
 
 
-# ── CLIENTE ───────────────────────────────────────────────────────────────────
+#CLIENTE
 
 class ClienteCreate(BaseModel):
     celular:     str
@@ -40,7 +40,7 @@ class ClienteResponse(BaseModel):
         orm_mode = True
 
 
-# ── SERVICIO ──────────────────────────────────────────────────────────────────
+#SERVICIO 
 
 class ServicioCreate(BaseModel):
     nombre:       str
@@ -66,7 +66,7 @@ class ServicioResponse(BaseModel):
         orm_mode = True
 
 
-# ── TURNO ─────────────────────────────────────────────────────────────────────
+#TURNO 
 
 class TurnoCreate(BaseModel):
     cliente_id:        int
@@ -109,7 +109,7 @@ class TurnoResponse(BaseModel):
         orm_mode = True
 
 
-# ── PAGO ──────────────────────────────────────────────────────────────────────
+#PAGO 
 
 class PagoCreate(BaseModel):
     turno_id:    Optional[int] = None
@@ -152,7 +152,7 @@ class PagoResponse(BaseModel):
         orm_mode = True
 
 
-# ── DEUDA ─────────────────────────────────────────────────────────────────────
+ #DEUDA 
 
 class DeudaCreate(BaseModel):
     cliente_id:        int

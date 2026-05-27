@@ -14,7 +14,7 @@ from sqlalchemy.sql import func
 from app.database import Base
 
 
-METODOS_PAGO = ['efectivo', 'transferencia', 'mp', 'debito', 'credito']
+METODOS_PAGO = ['efectivo', 'transferencia']
 TIPOS_PAGO = ['senia', 'parcial', 'total', 'saldo_favor', 'recargo', 'propina']
 ESTADOS_PAGO = ['pendiente', 'pagado', 'cancelado']
 ESTADOS_DEUDA = ['pendiente', 'parcial', 'saldada']

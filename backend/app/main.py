@@ -24,4 +24,4 @@ app.include_router(deudas.router)
 
 @app.get("/")
 def root():
-    return {"mensaje": "API funcionando"}
+    return {"API funcionando"}

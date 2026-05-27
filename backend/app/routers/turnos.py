@@ -54,9 +54,7 @@ class MontoCobradoUpdate(BaseModel):
     monto_cobrado: Decimal
 
 
-# ─────────────────────────────────────────────
-# ENDPOINTS — rutas fijas ANTES de /{turno_id}
-# ─────────────────────────────────────────────
+# ENDPOINTS 
 
 @router.get("/", response_model=list[TurnoResponse])
 def listar_turnos(
@@ -127,9 +125,7 @@ def reporte_hora_pico(mes: int = None, anio: int = None, db: Session = Depends(g
     return [{ "hora": f"{int(r.hora):02d}:00", "total": r.total } for r in query.all()]
 
 
-# ─────────────────────────────────────────────
-# ENDPOINTS — rutas con /{turno_id}
-# ─────────────────────────────────────────────
+# ENDPOINTS
 
 @router.get("/{turno_id}", response_model=TurnoResponse)
 def obtener_turno(turno_id: int, db: Session = Depends(get_db)):
@@ -255,7 +251,7 @@ def confirmar_sin_senia(turno_id: int, db: Session = Depends(get_db)):
     turno.estado       = "confirmado"
     turno.estado_senia = "exenta"
 
-    cliente.saldo_corriente += turno.monto_total  # ← agregar
+    cliente.saldo_corriente += turno.monto_total  
 
     _crear_deuda_si_corresponde(db, turno)
 
@@ -344,6 +340,6 @@ def marcar_ausente(turno_id: int, db: Session = Depends(get_db)):
     ).scalar() or Decimal("0")
     saldo_a_revertir = turno.monto_total - monto_ya_pagado
     cliente.saldo_corriente -= saldo_a_revertir
-    db.commit()  # ← faltaba esto
+    db.commit()  
     db.refresh(turno)
     return turno
