@@ -37,6 +37,10 @@ def _hay_conflicto_horario(db: Session, fecha_inicio, fecha_fin, excluir_turno_i
 
 
 def _crear_deuda_si_corresponde(db: Session, turno: Turno):
+    
+    existente = db.query(Deuda).filter(Deuda.turno_id == turno.turno_id).first()
+    if existente:
+        return  
     saldo_restante = turno.monto_total - turno.monto_senia
     if saldo_restante > 0:
         deuda = Deuda(
