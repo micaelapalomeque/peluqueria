@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import Sidebar from "./components/Sidebar"
-import Turnos from "./pages/Turnos"
+import Turnos from "./pages/turnos"
 import Clientes from "./pages/Clientes"
 import Servicios from "./pages/Servicios"
 import CuentaCorriente from "./pages/CuentaCorriente"
