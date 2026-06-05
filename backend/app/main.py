@@ -10,7 +10,10 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # URL del frontend en desarrollo
+    allow_origins=[
+        "http://localhost:5173",
+        "https://peluqueria-isa.vercel.app",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
