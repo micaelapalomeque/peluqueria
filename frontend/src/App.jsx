@@ -6,8 +6,12 @@ import Servicios from "./pages/Servicios"
 import CuentaCorriente from "./pages/CuentaCorriente"
 import Reportes from "./pages/Reportes"
 import Cobranzas from "./pages/Cobranzas"
+import Login from "./pages/Login"
 
 function App() {
+  const [autenticado, setAutenticado] = useState(
+    localStorage.getItem("autenticado") === "true"
+  )
   const [pagina, setPagina] = useState(
     window.location.hash.replace("#", "") || ""
   )
@@ -32,6 +36,10 @@ function App() {
     setPagina(path)
   }
 
+  if (!autenticado) {
+    return <Login onLogin={() => setAutenticado(true)} />
+  }
+
   return (
     <div style={{ display:"flex", minHeight:"100vh", background:"#1a1a1a" }}>
       <Sidebar paginaActual={pagina} onNavegar={navegar} />
@@ -51,13 +59,13 @@ function App() {
           </div>
         )}
 
-         {pagina === "" || pagina === "/" ? <Turnos />          :
-          pagina === "clientes"           ? <Clientes />        :
-          pagina === "servicios"          ? <Servicios />       :
-          pagina === "cuenta"             ? <CuentaCorriente /> :
-          pagina === "cobranzas"          ? <Cobranzas />       :
-          pagina === "reportes"           ? <Reportes />        :
-          <Turnos />
+        {pagina === "" || pagina === "/" ? <Turnos />          :
+         pagina === "clientes"           ? <Clientes />        :
+         pagina === "servicios"          ? <Servicios />       :
+         pagina === "cuenta"             ? <CuentaCorriente /> :
+         pagina === "cobranzas"          ? <Cobranzas />       :
+         pagina === "reportes"           ? <Reportes />        :
+         <Turnos />
         }
 
       </div>
@@ -66,6 +74,3 @@ function App() {
 }
 
 export default App
-
-
-
