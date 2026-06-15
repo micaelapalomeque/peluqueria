@@ -380,24 +380,29 @@ function ModalTurno({ turno: turnoInicial, onCerrar, onActualizado }) {
     setCargando(true)
     setError(null)
     try {
-      await api.patch(`/turnos/${turno.turno_id}/${endpoint}`)
-      await recargarTurno()
-    } catch(e) {
-      setError(e.response?.data?.detail || "Error")
-    } finally { setCargando(false) }
-  }
-
-  async function registrarSenia(metodo) {
-    if (!metodo) return setError("Seleccioná un método de pago")
-    setCargando(true)
-    setError(null)
-    try {
-      await api.patch(`/turnos/${turno.turno_id}/seniar?metodo_pago=${metodo}`)
-      await recargarTurno()
-    } catch(e) {
-      setError(e.response?.data?.detail || "Error al registrar seña")
-    } finally { setCargando(false) }
-  }
+        const { data } = await api.patch(`/turnos/${turno.turno_id}/${endpoint}`)
+        setTurno(data)
+        if (["confirmado", "completado", "cancelado", "ausente"].includes(data.estado)) {
+          onActualizado()
+        }
+      } catch(e) {
+        setError(e.response?.data?.detail || "Error")
+      } finally { setCargando(false) }
+    }
+async function registrarSenia(metodo) {
+      if (!metodo) return setError("Seleccioná un método de pago")
+      setCargando(true)
+      setError(null)
+      try {
+        const { data } = await api.patch(`/turnos/${turno.turno_id}/seniar?metodo_pago=${metodo}`)
+        setTurno(data)
+        if (["confirmado", "completado", "cancelado", "ausente"].includes(data.estado)) {
+          onActualizado()
+        }
+      } catch(e) {
+        setError(e.response?.data?.detail || "Error al registrar seña")
+      } finally { setCargando(false) }
+    }
 
   function abrirWhatsApp() {
     const celularLimpio = turno.cliente?.celular?.replace(/\D/g, "")
