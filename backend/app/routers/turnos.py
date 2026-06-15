@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from decimal import Decimal
 from typing import Optional
 from datetime import datetime, timedelta, date
@@ -62,26 +62,29 @@ class MontoCobradoUpdate(BaseModel):
 
 @router.get("/", response_model=list[TurnoResponse])
 def listar_turnos(
-            estado: Optional[str] = None,
-            cliente_id: Optional[int] = None,
-            fecha_desde: Optional[str] = None,
-            fecha_hasta: Optional[str] = None,
-            db: Session = Depends(get_db)
-        ):
-            query = db.query(Turno)
-            if estado:
-                if estado not in ("reservado", "confirmado", "asistido", "completado", "cancelado", "ausente"):
-                    raise HTTPException(status_code=400, detail="Estado inválido")
-                query = query.filter(Turno.estado == estado)
-            if cliente_id:
-                query = query.filter(Turno.cliente_id == cliente_id)
-            if fecha_desde:
-                inicio = datetime.strptime(fecha_desde, "%Y-%m-%d")
-                query = query.filter(Turno.fecha_hora_inicio >= inicio)
-            if fecha_hasta:
-                fin = datetime.strptime(fecha_hasta, "%Y-%m-%d") + timedelta(days=1)
-                query = query.filter(Turno.fecha_hora_inicio < fin)
-            return query.order_by(Turno.fecha_hora_inicio.asc()).all()
+        estado: Optional[str] = None,
+        cliente_id: Optional[int] = None,
+        fecha_desde: Optional[str] = None,
+        fecha_hasta: Optional[str] = None,
+        db: Session = Depends(get_db)
+    ):
+        query = db.query(Turno).options(
+            joinedload(Turno.cliente),
+            joinedload(Turno.servicio)
+        )
+        if estado:
+            if estado not in ("reservado", "confirmado", "asistido", "completado", "cancelado", "ausente"):
+                raise HTTPException(status_code=400, detail="Estado inválido")
+            query = query.filter(Turno.estado == estado)
+        if cliente_id:
+            query = query.filter(Turno.cliente_id == cliente_id)
+        if fecha_desde:
+            inicio = datetime.strptime(fecha_desde, "%Y-%m-%d")
+            query = query.filter(Turno.fecha_hora_inicio >= inicio)
+        if fecha_hasta:
+            fin = datetime.strptime(fecha_hasta, "%Y-%m-%d") + timedelta(days=1)
+            query = query.filter(Turno.fecha_hora_inicio < fin)
+        return query.order_by(Turno.fecha_hora_inicio.asc()).all()
 
 
 @router.get("/reporte/estados")
