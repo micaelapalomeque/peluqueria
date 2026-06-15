@@ -12,7 +12,13 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
+from datetime import datetime, timezone, timedelta
 
+# Zona horaria de Argentina (UTC-3, sin horario de verano)
+ARG_TZ = timezone(timedelta(hours=-3))
+
+def hora_argentina():
+    return datetime.now(ARG_TZ).replace(tzinfo=None)
 
 METODOS_PAGO = ['efectivo', 'transferencia']
 TIPOS_PAGO = ['senia', 'parcial', 'total', 'saldo_favor', 'recargo', 'propina']
@@ -94,7 +100,7 @@ class Pago(Base):
     turno_id    = Column(Integer, ForeignKey("turno.turno_id"), nullable=True)
     cliente_id  = Column(Integer, ForeignKey("cliente.id"),     nullable=True)
     servicio_id = Column(Integer, ForeignKey("servicio.id"),    nullable=True)
-    fecha_pago  = Column(DateTime, nullable=False, server_default=func.now())
+    fecha_pago  = Column(DateTime, nullable=False, default=hora_argentina)
     monto       = Column(Numeric(10, 2), nullable=False)
     metodo_pago = Column(String(50), nullable=False)
     tipo_pago   = Column(String(50), nullable=False)
