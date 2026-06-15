@@ -248,15 +248,17 @@ function Turnos() {
   const [turnoSeleccionado, setTurnoSeleccionado] = useState(null)
   const [modalExportar, setModalExportar] = useState(false)
 
-  function cargarTurnos() {
+function cargarTurnos() {
     setCargando(true)
-    api.get("/turnos/")
+    const fechaDesde = dias[0].fecha
+    const fechaHasta = dias[6].fecha
+    api.get(`/turnos/?fecha_desde=${fechaDesde}&fecha_hasta=${fechaHasta}`)
       .then(res => setTurnos(res.data))
       .catch(() => setTurnos([]))
       .finally(() => setCargando(false))
   }
 
-  useEffect(() => { cargarTurnos() }, [diaSeleccionado])
+  useEffect(() => { cargarTurnos() }, [offsetSemana])
 
   function turnoDeEsteHorario(horario) {
     const estadosOcultos = ["cancelado", "ausente"]
@@ -370,10 +372,7 @@ function Turnos() {
             const c = COLORES_ESTADO[turno.estado] || COLORES_ESTADO.cancelado
             return (
               <div key={horario}
-                onClick={async () => {
-                  const { data } = await api.get(`/turnos/${turno.turno_id}`)
-                  setTurnoSeleccionado(data)
-                }}
+                onClick={() => setTurnoSeleccionado(turno)}
                 style={{ borderRadius:"8px", border:`0.5px solid ${c.border}`, padding:"12px", background:c.bg, cursor:"pointer" }}
                 onMouseEnter={e => e.currentTarget.style.opacity = "0.8"}
                 onMouseLeave={e => e.currentTarget.style.opacity = "1"}
